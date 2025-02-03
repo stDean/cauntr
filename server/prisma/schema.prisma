@@ -14,9 +14,63 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum PlanStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+}
+
+enum TIER {
+  PERSONAL
+  PREMIUM
+  ENTERPRISE
+}
+
+enum BillType {
+  MONTHLY
+  YEARLY
+}
+
 model Company {
+  id             String               @id @default(uuid())
+  company_name   String
+  company_email  String               @unique
+  password       String
+  country        String
+  canUpdate      Boolean              @default(true)
+  canCancel      Boolean              @default(true)
+  verified       Boolean              @default(false)
+  paymentStatus  PlanStatus           @default(PENDING)
+  subscription   CompanySubscription? @relation(fields: [subscriptionId], references: [id])
+  subscriptionId String?              @unique
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@index([company_email])
+  @@index([id])
+}
+
+model CompanySubscription {
+  id                       String   @id @default(uuid())
+  payStackCustomerID       String
+  payStackSubscriptionCode String
+  tier                     TIER     @default(PERSONAL)
+  tierType                 BillType @default(MONTHLY)
+  startDate                DateTime
+  endDate                  DateTime
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  company                  Company?
+
+  @@unique([payStackCustomerID, payStackSubscriptionCode])
+  @@index([id])
+}
+
+model Otp {
   id        String   @id @default(uuid())
-  name      String
+  email     String
+  otp       String
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  expiresAt DateTime
+  verified  Boolean  @default(false)
 }

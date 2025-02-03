@@ -1,0 +1,1 @@
+export const sendOtpEmail = async (email: string, token: string) => {}

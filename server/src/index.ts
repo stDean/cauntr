@@ -9,6 +9,7 @@ import { notFound as notFoundMiddleware } from "./middleware/notFoundError.m.js"
 import { errorHandlerMiddleware } from "./middleware/error-handling.m.js";
 import { setupGracefulShutdown } from "./helpers/shutdown.h.js";
 import { prisma } from "./helpers/prisma.h.js";
+import Routes from "./routes/index.js";
 
 const app: Application = express();
 dotenv.config();
@@ -24,6 +25,7 @@ app.use(cookieParser()); // Parse cookies
 app.get("/", (req: Request, res: Response) => {
 	res.status(200).json({ msg: "Hello, world!" });
 });
+app.use("/api/v1", Routes);
 
 // Error handling middleware
 app.use(notFoundMiddleware);
