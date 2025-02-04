@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { emailService } from "../services/emailService";
 import { prisma } from "./prisma.h";
+import jwt from "jsonwebtoken";
 
 export const generateVerificationToken = async (email: string) => {
 	const token = crypto.randomInt(100_000, 1_000_000).toString();
@@ -25,4 +26,16 @@ export const handleOtpForCompany = async (email: string) => {
 	}
 
 	await emailService.sendVerificationOTP({ email, token });
+};
+
+export const createJWT = ({
+	email,
+	companyId,
+}: {
+	email: string;
+	companyId: string;
+}) => {
+	return jwt.sign({ email, companyId }, process.env.JWT_SECRET, {
+		expiresIn: "7d",
+	});
 };

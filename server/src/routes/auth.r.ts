@@ -11,5 +11,6 @@ router
 		[validateCompanyRegistration, checkExistingCompany],
 		AuthController.createCompany
 	);
+router.route("/verifyOtp").post(AuthController.verifyOTP);
 
 export default router;

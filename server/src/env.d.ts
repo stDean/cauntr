@@ -15,6 +15,7 @@ declare global {
 			PAY_STACK_PUBLIC_KEY: string;
 			PAY_STACK_REDIRECT_URL: string;
 			PAY_STACK_REDIRECT_REACTIVATE_URL: string;
+			JWT_SECRET: string;
 		}
 	}
 }

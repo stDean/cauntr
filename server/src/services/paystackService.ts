@@ -59,6 +59,11 @@ interface GetSubscriptionResponse {
 	};
 }
 
+interface RefundTransactionResponse {
+	status: boolean;
+	message: string;
+}
+
 class PayStackService {
 	private paystack: Paystack;
 
@@ -138,32 +143,67 @@ class PayStackService {
 		customer: string;
 		start_date: Date;
 	}) {
-		const createSubRes = (await this.paystack.subscription.create({
-			customer,
-			plan,
-			authorization,
-			start_date,
-		})) as CreateSubscriptionResponse;
+		try {
+			const createSubRes = (await this.paystack.subscription.create({
+				customer,
+				plan,
+				authorization,
+				start_date,
+			})) as CreateSubscriptionResponse;
 
-		if (createSubRes.status === false) {
-			return { error: createSubRes.message, subscription: null };
+			if (createSubRes.status === false) {
+				return { error: createSubRes.message, subscription: null };
+			}
+
+			const getSub = (await this.paystack.subscription.fetch({
+				code: createSubRes?.data.subscription_code,
+			})) as GetSubscriptionResponse;
+
+			if (getSub.status === false) {
+				return { error: getSub.message, subscription: null };
+			}
+
+			return {
+				subscription: {
+					...createSubRes,
+					endDate: new Date(getSub?.data.next_payment_date),
+				},
+				error: null,
+			};
+		} catch (error: any) {
+			return {
+				error: error.message || "Unknown error occurred",
+				transaction: null,
+				verify: null,
+			};
 		}
+	}
 
-		const getSub = (await this.paystack.subscription.list({
-			code: createSubRes?.data.subscription_code,
-		})) as GetSubscriptionResponse;
+	async refundTransaction({
+		transId,
+		amount,
+	}: {
+		transId: number;
+		amount: string;
+	}) {
+		try {
+			const refundRes = (await this.paystack.refund.create({
+				transaction: transId,
+				amount,
+			})) as RefundTransactionResponse;
 
-		if (getSub.status === false) {
-			return { error: getSub.message, subscription: null };
+			if (refundRes.status === false) {
+				return { error: refundRes.message };
+			}
+
+			return { msg: refundRes.message, error: null };
+		} catch (error: any) {
+			return {
+				error: error.message || "Unknown error occurred",
+				transaction: null,
+				verify: null,
+			};
 		}
-
-		return {
-			subscription: {
-				...createSubRes,
-				endDate: new Date(getSub?.data.next_payment_date),
-			},
-			error: null,
-		};
 	}
 }
 

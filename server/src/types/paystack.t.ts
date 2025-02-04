@@ -19,7 +19,16 @@ declare module "@paystack/paystack-sdk" {
 				authorization: string;
 				start_date: Date;
 			}): Promise<any>;
-			list({ code }: { code?: string }): Promise<any>;
+			fetch({ code }: { code?: string }): Promise<any>;
+		};
+		refund: {
+			create({
+				transaction,
+				amount,
+			}: {
+				transaction: number;
+				amount: string;
+			}): Promise<any>;
 		};
 	}
 

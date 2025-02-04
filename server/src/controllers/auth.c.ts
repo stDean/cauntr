@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
 import argon2 from "argon2";
 import { prisma } from "../helpers/prisma.h";
-import { handleOtpForCompany } from "../helpers/authHelpers.h";
+import { createJWT, handleOtpForCompany } from "../helpers/authHelpers.h";
 import { paystackService } from "../services/paystackService";
 import { BadRequestError, CustomAPIError } from "../errors";
 import { my_plans } from "../helpers/constants";
@@ -70,7 +70,7 @@ export const AuthController = {
 		res.status(StatusCodes.CREATED).json({
 			success: true,
 			msg: "Company created successfully, verify your email to continue.",
-			transaction,
+			paymentUrl: transaction.authorization_url,
 		});
 	},
 	verifyOTP: async (req: Request, res: Response): Promise<void> => {
@@ -101,6 +101,7 @@ export const AuthController = {
 						tier: true,
 						tierType: true,
 						authorization_code: true,
+						transactionId: true,
 					},
 				},
 			},
@@ -116,24 +117,29 @@ export const AuthController = {
 		startDate.setDate(startDate.getDate() + 7); // 7-day trial period
 
 		// Create a paystack subscription for the company
-		const {} = await paystackService.createSubscription({
+		const { error, subscription } = await paystackService.createSubscription({
 			customer: company.Subscription!.payStackCustomerID,
 			plan: my_plans[planName],
 			start_date: startDate,
-			authorization: company.Subscription!.authorization_code!,
+			authorization: String(company.Subscription!.authorization_code!),
 		});
+
+		if (error) {
+			throw new CustomAPIError(error, StatusCodes.BAD_GATEWAY);
+		}
 
 		// Update company and subscription details
 		const updatedCompany = await prisma.company.update({
 			where: { id: company.id },
 			data: {
 				paymentStatus: "ACTIVE",
+				verified: true,
 				Subscription: {
 					update: {
 						data: {
-							payStackSubscriptionCode: "111",
+							payStackSubscriptionCode: subscription?.data.subscription_code,
 							startDate: new Date(),
-							endDate: new Date(),
+							endDate: subscription?.endDate,
 						},
 					},
 				},
@@ -146,20 +152,38 @@ export const AuthController = {
 		});
 
 		// refund initial fee(#50) to the company
+		const { error: refundErr, msg } = await paystackService.refundTransaction({
+			transId: Number(company!.Subscription!.transactionId),
+			amount: "5000",
+		});
+
+		if (refundErr) {
+			throw new CustomAPIError(refundErr, StatusCodes.BAD_GATEWAY);
+		}
 
 		// Create the company as a user
 		const user = await prisma.users.create({
 			data: {
-				companyId: company.id,
-				email: company.company_email,
-				password: company.password,
+				companyId: updatedCompany.id,
+				email: updatedCompany.company_email,
+				password: updatedCompany.password,
 				role: "ADMIN",
 			},
 		});
 
 		// Send JWT
+		const jwtToken = createJWT({
+			email: user.email,
+			companyId: user.companyId!,
+		});
 
 		// Set authentication cookie
+		res.cookie("token", jwtToken, {
+			httpOnly: true,
+			secure: process.env.NODE_ENV === "production",
+			sameSite: "strict",
+			maxAge: 7 * 24 * 60 * 60 * 1000,
+		});
 
 		res.status(StatusCodes.OK).json({
 			message: "OTP verified",

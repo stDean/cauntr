@@ -61,6 +61,7 @@ model CompanySubscription {
   payStackCustomerID       String
   payStackSubscriptionCode String?
   authorization_code       String?
+  transactionId            String?
   tier                     TIER      @default(PERSONAL)
   tierType                 BillType  @default(MONTHLY)
   startDate                DateTime?

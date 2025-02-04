@@ -30,6 +30,7 @@ const validatePayStackSignature = async (
 
 const handleChargeSuccess = async (data: any, tx: any) => {
 	const {
+		id,
 		customer: { email },
 		authorization: { authorization_code },
 		status,
@@ -54,7 +55,7 @@ const handleChargeSuccess = async (data: any, tx: any) => {
 			paymentStatus: "ACTIVE",
 			Subscription: {
 				update: {
-					data: { authorization_code },
+					data: { authorization_code, transactionId: id.toString() },
 				},
 			},
 		},
@@ -101,6 +102,9 @@ router
 					switch (event) {
 						case "charge.success":
 							processedData = await handleChargeSuccess(data, tx);
+							break;
+						case "subscription.create":
+							console.log({ data, msg: "subscription created" });
 							break;
 						// Add other event cases here
 						default:
