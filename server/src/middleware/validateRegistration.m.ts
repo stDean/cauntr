@@ -43,6 +43,8 @@ export const validateCompanyRegistration = (
 			success: false,
 			errors,
 		});
+
+		return;
 	}
 
 	next();

@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
 import { prisma } from "../helpers/prisma.h";
 import { handleOtpForCompany } from "../helpers/authHelpers.h";
+import { CustomAPIError } from "../errors";
 
 export const checkExistingCompany = async (
 	req: Request,
@@ -13,45 +14,50 @@ export const checkExistingCompany = async (
 
 		const existingCompany = await prisma.company.findUnique({
 			where: { company_email },
+			include: { Subscription: { select: { payStackCustomerID: true } } },
 		});
 
-		if (!existingCompany) return;
+		if (existingCompany) {
+			// Handle unverified company with active payment and no paystack customer code
+			if (
+				!existingCompany.verified &&
+				existingCompany.paymentStatus === "PENDING" &&
+				!existingCompany!.Subscription!.payStackCustomerID
+			) {
+				await handleOtpForCompany(existingCompany.company_email);
+				res.status(StatusCodes.OK).json({
+					message: "Check your email for OTP",
+					success: true,
+				});
 
-		// Handle unverified company with active payment
-		if (
-			!existingCompany.verified &&
-			existingCompany.paymentStatus === "ACTIVE"
-		) {
-			await handleOtpForCompany(existingCompany.company_email);
-			return res.status(StatusCodes.OK).json({
-				message: "Check your email for OTP",
-				success: true,
+				return;
+			}
+
+			// Handle verified company with inactive payment
+			if (
+				existingCompany.verified &&
+				existingCompany.paymentStatus === "PENDING"
+			) {
+				res.status(StatusCodes.BAD_REQUEST).json({
+					success: false,
+					message: "Company already exists. Please update your payment method.",
+				});
+
+				return;
+			}
+
+			// Delete company record if doesn't match previous conditions
+			await prisma.company.delete({
+				where: { id: existingCompany.id },
 			});
 		}
-
-		// Handle verified company with inactive payment
-		if (
-			existingCompany.verified &&
-			existingCompany.paymentStatus === "INACTIVE"
-		) {
-			return res.status(StatusCodes.BAD_REQUEST).json({
-				success: false,
-				message: "Company already exists. Please update your payment method.",
-			});
-		}
-
-		// Delete company record if doesn't match previous conditions
-		await prisma.company.delete({
-			where: { id: existingCompany.id },
-		});
 
 		// Continue with registration process
-		return next();
+		next();
 	} catch (error) {
-		return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-			success: false,
-			message: "Error checking company existence",
-			error: process.env.NODE_ENV === "development" ? error : undefined,
-		});
+		throw new CustomAPIError(
+			"Error checking company existence",
+			StatusCodes.INTERNAL_SERVER_ERROR
+		);
 	}
 };

@@ -88,6 +88,4 @@ export const errorHandlerMiddleware: ErrorRequestHandler = (
 		// Include stack trace in development only
 		...(process.env.NODE_ENV === "development" && { stack: err.stack }),
 	});
-
-	next();
 };

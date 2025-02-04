@@ -1,6 +1,6 @@
-import { sendOtpEmail } from "../services/emailService";
-import { prisma } from "./prisma.h";
 import crypto from "crypto";
+import { emailService } from "../services/emailService";
+import { prisma } from "./prisma.h";
 
 export const generateVerificationToken = async (email: string) => {
 	const token = crypto.randomInt(100_000, 1_000_000).toString();
@@ -24,5 +24,5 @@ export const handleOtpForCompany = async (email: string) => {
 		});
 	}
 
-	sendOtpEmail(email, token);
+	await emailService.sendVerificationOTP({ email, token });
 };

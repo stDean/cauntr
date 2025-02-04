@@ -31,6 +31,11 @@ enum BillType {
   YEARLY
 }
 
+enum Role {
+  EMPLOYEE
+  ADMIN
+}
+
 model Company {
   id             String               @id @default(uuid())
   company_name   String
@@ -40,26 +45,27 @@ model Company {
   canUpdate      Boolean              @default(true)
   canCancel      Boolean              @default(true)
   verified       Boolean              @default(false)
-  paymentStatus  PlanStatus           @default(PENDING)
-  subscription   CompanySubscription? @relation(fields: [subscriptionId], references: [id])
+  paymentStatus  PlanStatus           @default(INACTIVE)
+  Subscription   CompanySubscription? @relation(fields: [subscriptionId], references: [id])
   subscriptionId String?              @unique
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
+  Users          Users[]
 
   @@index([company_email])
   @@index([id])
 }
 
 model CompanySubscription {
-  id                       String   @id @default(uuid())
+  id                       String    @id @default(uuid())
   payStackCustomerID       String
-  payStackSubscriptionCode String
-  tier                     TIER     @default(PERSONAL)
-  tierType                 BillType @default(MONTHLY)
-  startDate                DateTime
-  endDate                  DateTime
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
+  payStackSubscriptionCode String?
+  tier                     TIER      @default(PERSONAL)
+  tierType                 BillType  @default(MONTHLY)
+  startDate                DateTime?
+  endDate                  DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
   company                  Company?
 
   @@unique([payStackCustomerID, payStackSubscriptionCode])
@@ -73,4 +79,20 @@ model Otp {
   createdAt DateTime @default(now())
   expiresAt DateTime
   verified  Boolean  @default(false)
+}
+
+model Users {
+  id         String   @id @default(uuid())
+  first_name String?
+  last_name  String?
+  email      String   @unique
+  password   String
+  role       Role     @default(EMPLOYEE)
+  companyId  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  Company    Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([id])
+  @@index([email])
 }
