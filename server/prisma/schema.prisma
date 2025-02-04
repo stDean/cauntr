@@ -46,7 +46,7 @@ model Company {
   canCancel      Boolean              @default(true)
   verified       Boolean              @default(false)
   paymentStatus  PlanStatus           @default(INACTIVE)
-  Subscription   CompanySubscription? @relation(fields: [subscriptionId], references: [id])
+  Subscription   CompanySubscription? @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   subscriptionId String?              @unique
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
@@ -60,6 +60,7 @@ model CompanySubscription {
   id                       String    @id @default(uuid())
   payStackCustomerID       String
   payStackSubscriptionCode String?
+  authorization_code       String?
   tier                     TIER      @default(PERSONAL)
   tierType                 BillType  @default(MONTHLY)
   startDate                DateTime?
@@ -68,7 +69,8 @@ model CompanySubscription {
   updatedAt                DateTime  @updatedAt
   company                  Company?
 
-  @@unique([payStackCustomerID, payStackSubscriptionCode])
+  @@unique([payStackCustomerID])
+  @@unique([payStackSubscriptionCode])
   @@index([id])
 }
 
@@ -95,4 +97,15 @@ model Users {
 
   @@index([id])
   @@index([email])
+}
+
+model WebhookEvent {
+  id          String    @id @default(uuid())
+  eventId     String    @unique // Provider's event ID
+  eventType   String // "charge.success", "subscription.created"
+  payload     Json // Raw event payload
+  status      String // "processed", "failed", "retrying"
+  attempts    Int       @default(0)
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
 }

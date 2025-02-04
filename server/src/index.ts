@@ -10,6 +10,7 @@ import { errorHandlerMiddleware } from "./middleware/error-handling.m.js";
 import { setupGracefulShutdown } from "./helpers/shutdown.h.js";
 import { prisma } from "./helpers/prisma.h.js";
 import Routes from "./routes/index.js";
+import PayStackWebhook from "./webhook/paystack.w.js";
 
 const app: Application = express();
 dotenv.config();
@@ -25,7 +26,9 @@ app.use(cookieParser()); // Parse cookies
 app.get("/", (req: Request, res: Response) => {
 	res.status(200).json({ msg: "Hello, world!" });
 });
+
 app.use("/api/v1", Routes);
+app.use("/api/v1", PayStackWebhook)
 
 // Error handling middleware
 app.use(notFoundMiddleware);

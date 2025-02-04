@@ -7,6 +7,20 @@ declare module "@paystack/paystack-sdk" {
 			verify({ reference }: { reference: string }): Promise<any>;
 			list(params?: any): Promise<any>;
 		};
+		subscription: {
+			create({
+				customer,
+				plan,
+				authorization,
+				start_date,
+			}: {
+				customer: string;
+				plan: string;
+				authorization: string;
+				start_date: Date;
+			}): Promise<any>;
+			list({ code }: { code?: string }): Promise<any>;
+		};
 	}
 
 	export default Paystack;

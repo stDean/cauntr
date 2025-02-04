@@ -5,6 +5,7 @@ import { prisma } from "../helpers/prisma.h";
 import { handleOtpForCompany } from "../helpers/authHelpers.h";
 import { paystackService } from "../services/paystackService";
 import { BadRequestError, CustomAPIError } from "../errors";
+import { my_plans } from "../helpers/constants";
 
 export const AuthController = {
 	createCompany: async (req: Request, res: Response): Promise<void> => {
@@ -49,10 +50,13 @@ export const AuthController = {
 				country,
 				paymentStatus: "PENDING",
 				Subscription: {
-					create: {
-						tier: billingPlan.toUpperCase(),
-						tierType: billingType === "month" ? "MONTHLY" : "YEARLY",
-						payStackCustomerID: verify?.customer.customer_code,
+					connectOrCreate: {
+						where: { payStackCustomerID: verify.customer.customer_code },
+						create: {
+							tier: billingPlan.toUpperCase(),
+							tierType: billingType === "month" ? "MONTHLY" : "YEARLY",
+							payStackCustomerID: verify?.customer.customer_code,
+						},
 					},
 				},
 			},
@@ -92,7 +96,12 @@ export const AuthController = {
 			where: { company_email },
 			include: {
 				Subscription: {
-					select: { payStackCustomerID: true, tier: true, tierType: true },
+					select: {
+						payStackCustomerID: true,
+						tier: true,
+						tierType: true,
+						authorization_code: true,
+					},
 				},
 			},
 		});
@@ -107,8 +116,29 @@ export const AuthController = {
 		startDate.setDate(startDate.getDate() + 7); // 7-day trial period
 
 		// Create a paystack subscription for the company
+		const {} = await paystackService.createSubscription({
+			customer: company.Subscription!.payStackCustomerID,
+			plan: my_plans[planName],
+			start_date: startDate,
+			authorization: company.Subscription!.authorization_code!,
+		});
 
 		// Update company and subscription details
+		const updatedCompany = await prisma.company.update({
+			where: { id: company.id },
+			data: {
+				paymentStatus: "ACTIVE",
+				Subscription: {
+					update: {
+						data: {
+							payStackSubscriptionCode: "111",
+							startDate: new Date(),
+							endDate: new Date(),
+						},
+					},
+				},
+			},
+		});
 
 		// delete the otp
 		await prisma.otp.delete({
