@@ -64,15 +64,16 @@ interface RefundTransactionResponse {
 	message: string;
 }
 
-class PayStackService {
+export class PayStackService {
 	private paystack: Paystack;
 
 	constructor() {
 		// Validate the environment variable
-		if (!process.env.PAY_STACK_SECRET_KEY) {
-			console.log("PAYSTACK_SECRET_KEY is missing in environment variables");
-			process.exit(1);
-		}
+		// if (!process.env.PAY_STACK_SECRET_KEY) {
+		// 	throw new Error(
+		// 		"PAY_STACK_SECRET_KEY is missing in environment variables"
+		// 	);
+		// }
 
 		this.paystack = new Paystack(process.env.PAY_STACK_SECRET_KEY);
 	}
@@ -173,8 +174,7 @@ class PayStackService {
 		} catch (error: any) {
 			return {
 				error: error.message || "Unknown error occurred",
-				transaction: null,
-				verify: null,
+				subscription: null,
 			};
 		}
 	}
@@ -200,8 +200,7 @@ class PayStackService {
 		} catch (error: any) {
 			return {
 				error: error.message || "Unknown error occurred",
-				transaction: null,
-				verify: null,
+				msg: null,
 			};
 		}
 	}

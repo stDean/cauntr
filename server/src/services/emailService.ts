@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
 import { Transporter } from "nodemailer";
 
-interface EmailConfig {
+export interface EmailConfig {
 	host: string;
 	port: number;
 	secure: boolean;
@@ -11,13 +11,13 @@ interface EmailConfig {
 	};
 }
 
-interface EmailOptions {
+export interface EmailOptions {
 	to: string;
 	subject: string;
 	html?: string;
 }
 
-class EmailService {
+export class EmailService {
 	private transporter: Transporter;
 
 	constructor(config: EmailConfig) {

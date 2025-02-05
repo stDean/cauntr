@@ -18,7 +18,7 @@ dotenv.config();
 // Middleware order matters (Helmet first for security)
 app.use(cors()); // Enable CORS
 app.use(helmet()); // Set security headers
-app.use(morgan("dev")); // Log requests
+app.use(morgan("tiny")); // Log requests
 app.use(express.json()); // Parse JSON bodies
 app.use(cookieParser()); // Parse cookies
 
@@ -28,7 +28,7 @@ app.get("/", (req: Request, res: Response) => {
 });
 
 app.use("/api/v1", Routes);
-app.use("/api/v1", PayStackWebhook)
+app.use("/api/v1", PayStackWebhook);
 
 // Error handling middleware
 app.use(notFoundMiddleware);
