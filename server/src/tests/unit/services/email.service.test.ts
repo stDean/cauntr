@@ -3,7 +3,7 @@ import {
 	EmailConfig,
 	EmailOptions,
 	EmailService,
-} from "../../services/emailService";
+} from "../../../services/emailService";
 
 // Mock nodemailer
 jest.mock("nodemailer");

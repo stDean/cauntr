@@ -1,5 +1,5 @@
 import Paystack from "@paystack/paystack-sdk";
-import { PayStackService } from "../../services/paystackService";
+import { PayStackService } from "../../../services/paystackService";
 
 // Mock the Paystack SDK
 jest.mock("@paystack/paystack-sdk");

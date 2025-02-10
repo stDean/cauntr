@@ -1,53 +1,229 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<coverage generated="1738742103031" clover="3.2.0">
-  <project timestamp="1738742103031" name="All files">
-    <metrics statements="41" coveredstatements="41" conditionals="16" coveredconditionals="13" methods="8" coveredmethods="8" elements="65" coveredelements="62" complexity="0" loc="41" ncloc="41" packages="1" files="2" classes="2"/>
-    <file name="emailService.ts" path="C:\Users\hp\Desktop\tuts\Next\cauntr\server\src\services\emailService.ts">
-      <metrics statements="13" coveredstatements="13" conditionals="3" coveredconditionals="3" methods="4" coveredmethods="4"/>
-      <line num="1" count="1" type="stmt"/>
-      <line num="20" count="1" type="stmt"/>
-      <line num="24" count="9" type="stmt"/>
-      <line num="28" count="5" type="stmt"/>
-      <line num="29" count="5" type="stmt"/>
-      <line num="34" count="2" type="stmt"/>
-      <line num="35" count="2" type="stmt"/>
-      <line num="46" count="4" type="cond" truecount="3" falsecount="0"/>
-      <line num="47" count="1" type="stmt"/>
-      <line num="50" count="3" type="stmt"/>
-      <line num="59" count="18" type="stmt"/>
-      <line num="68" count="3" type="stmt"/>
-      <line num="77" count="1" type="stmt"/>
-    </file>
-    <file name="paystackService.ts" path="C:\Users\hp\Desktop\tuts\Next\cauntr\server\src\services\paystackService.ts">
-      <metrics statements="28" coveredstatements="28" conditionals="13" coveredconditionals="10" methods="4" coveredmethods="4"/>
-      <line num="1" count="1" type="stmt"/>
-      <line num="67" count="1" type="stmt"/>
-      <line num="78" count="14" type="stmt"/>
-      <line num="86" count="4" type="stmt"/>
-      <line num="89" count="4" type="stmt"/>
-      <line num="97" count="3" type="cond" truecount="1" falsecount="0"/>
-      <line num="101" count="1" type="stmt"/>
-      <line num="109" count="2" type="stmt"/>
-      <line num="113" count="2" type="cond" truecount="1" falsecount="0"/>
-      <line num="114" count="1" type="stmt"/>
-      <line num="121" count="1" type="stmt"/>
-      <line num="128" count="1" type="stmt"/>
-      <line num="147" count="4" type="stmt"/>
-      <line num="148" count="4" type="stmt"/>
-      <line num="155" count="3" type="cond" truecount="1" falsecount="0"/>
-      <line num="156" count="1" type="stmt"/>
-      <line num="159" count="2" type="stmt"/>
-      <line num="163" count="2" type="cond" truecount="1" falsecount="0"/>
-      <line num="164" count="1" type="stmt"/>
-      <line num="167" count="1" type="stmt"/>
-      <line num="175" count="1" type="stmt"/>
-      <line num="189" count="3" type="stmt"/>
-      <line num="190" count="3" type="stmt"/>
-      <line num="195" count="2" type="cond" truecount="1" falsecount="0"/>
-      <line num="196" count="1" type="stmt"/>
-      <line num="199" count="1" type="stmt"/>
-      <line num="201" count="1" type="stmt"/>
-      <line num="209" count="1" type="stmt"/>
-    </file>
+<coverage generated="1739198050426" clover="3.2.0">
+  <project timestamp="1739198050427" name="All files">
+    <metrics statements="181" coveredstatements="160" conditionals="49" coveredconditionals="35" methods="29" coveredmethods="21" elements="259" coveredelements="216" complexity="0" loc="181" ncloc="181" packages="4" files="10" classes="10"/>
+    <package name="controllers">
+      <metrics statements="102" coveredstatements="93" conditionals="31" coveredconditionals="22" methods="10" coveredmethods="9"/>
+      <file name="auth.c.ts" path="C:\Users\hp\Desktop\tuts\Next\cauntr\server\src\controllers\auth.c.ts">
+        <metrics statements="102" coveredstatements="93" conditionals="31" coveredconditionals="22" methods="10" coveredmethods="9"/>
+        <line num="2" count="1" type="stmt"/>
+        <line num="3" count="1" type="stmt"/>
+        <line num="4" count="1" type="stmt"/>
+        <line num="5" count="1" type="stmt"/>
+        <line num="10" count="1" type="stmt"/>
+        <line num="11" count="1" type="stmt"/>
+        <line num="12" count="1" type="stmt"/>
+        <line num="13" count="1" type="stmt"/>
+        <line num="15" count="1" type="stmt"/>
+        <line num="16" count="2" type="stmt"/>
+        <line num="19" count="2" type="cond" truecount="0" falsecount="1"/>
+        <line num="20" count="0" type="stmt"/>
+        <line num="23" count="2" type="stmt"/>
+        <line num="27" count="2" type="stmt"/>
+        <line num="32" count="2" type="stmt"/>
+        <line num="37" count="2" type="stmt"/>
+        <line num="40" count="1" type="stmt"/>
+        <line num="49" count="3" type="stmt"/>
+        <line num="50" count="3" type="stmt"/>
+        <line num="54" count="3" type="stmt"/>
+        <line num="60" count="3" type="cond" truecount="4" falsecount="0"/>
+        <line num="61" count="2" type="stmt"/>
+        <line num="68" count="1" type="cond" truecount="0" falsecount="1"/>
+        <line num="69" count="0" type="stmt"/>
+        <line num="75" count="1" type="stmt"/>
+        <line num="96" count="1" type="stmt"/>
+        <line num="97" count="0" type="stmt"/>
+        <line num="100" count="1" type="stmt"/>
+        <line num="107" count="3" type="stmt"/>
+        <line num="108" count="3" type="cond" truecount="1" falsecount="0"/>
+        <line num="109" count="1" type="stmt"/>
+        <line num="112" count="2" type="stmt"/>
+        <line num="121" count="2" type="cond" truecount="1" falsecount="0"/>
+        <line num="122" count="1" type="stmt"/>
+        <line num="125" count="1" type="stmt"/>
+        <line num="139" count="1" type="cond" truecount="0" falsecount="1"/>
+        <line num="140" count="0" type="stmt"/>
+        <line num="143" count="1" type="stmt"/>
+        <line num="146" count="1" type="stmt"/>
+        <line num="147" count="1" type="stmt"/>
+        <line num="150" count="1" type="stmt"/>
+        <line num="157" count="1" type="cond" truecount="0" falsecount="1"/>
+        <line num="158" count="0" type="stmt"/>
+        <line num="162" count="1" type="stmt"/>
+        <line num="180" count="1" type="stmt"/>
+        <line num="185" count="1" type="stmt"/>
+        <line num="190" count="1" type="cond" truecount="0" falsecount="1"/>
+        <line num="191" count="0" type="stmt"/>
+        <line num="195" count="1" type="stmt"/>
+        <line num="205" count="1" type="stmt"/>
+        <line num="211" count="1" type="stmt"/>
+        <line num="218" count="1" type="stmt"/>
+        <line num="223" count="2" type="stmt"/>
+        <line num="224" count="2" type="cond" truecount="0" falsecount="1"/>
+        <line num="225" count="0" type="stmt"/>
+        <line num="228" count="2" type="stmt"/>
+        <line num="231" count="2" type="cond" truecount="1" falsecount="0"/>
+        <line num="232" count="1" type="stmt"/>
+        <line num="235" count="1" type="stmt"/>
+        <line num="237" count="1" type="stmt"/>
+        <line num="242" count="4" type="stmt"/>
+        <line num="243" count="4" type="cond" truecount="3" falsecount="0"/>
+        <line num="244" count="1" type="stmt"/>
+        <line num="247" count="3" type="stmt"/>
+        <line num="251" count="3" type="cond" truecount="1" falsecount="0"/>
+        <line num="252" count="1" type="stmt"/>
+        <line num="255" count="2" type="stmt"/>
+        <line num="256" count="2" type="cond" truecount="1" falsecount="0"/>
+        <line num="257" count="1" type="stmt"/>
+        <line num="260" count="1" type="stmt"/>
+        <line num="265" count="1" type="stmt"/>
+        <line num="272" count="1" type="stmt"/>
+        <line num="277" count="1" type="stmt"/>
+        <line num="278" count="1" type="stmt"/>
+        <line num="283" count="2" type="stmt"/>
+        <line num="284" count="2" type="cond" truecount="3" falsecount="0"/>
+        <line num="285" count="1" type="stmt"/>
+        <line num="288" count="1" type="stmt"/>
+        <line num="291" count="1" type="cond" truecount="0" falsecount="1"/>
+        <line num="292" count="0" type="stmt"/>
+        <line num="295" count="1" type="stmt"/>
+        <line num="297" count="1" type="stmt"/>
+        <line num="301" count="1" type="stmt"/>
+        <line num="303" count="1" type="stmt"/>
+        <line num="309" count="2" type="stmt"/>
+        <line num="310" count="2" type="cond" truecount="0" falsecount="1"/>
+        <line num="311" count="0" type="stmt"/>
+        <line num="314" count="2" type="stmt"/>
+        <line num="317" count="2" type="cond" truecount="1" falsecount="0"/>
+        <line num="318" count="1" type="stmt"/>
+        <line num="321" count="1" type="stmt"/>
+        <line num="323" count="1" type="stmt"/>
+        <line num="329" count="3" type="stmt"/>
+        <line num="330" count="3" type="cond" truecount="4" falsecount="0"/>
+        <line num="331" count="1" type="stmt"/>
+        <line num="334" count="2" type="stmt"/>
+        <line num="337" count="2" type="cond" truecount="1" falsecount="0"/>
+        <line num="338" count="1" type="stmt"/>
+        <line num="341" count="1" type="stmt"/>
+        <line num="342" count="1" type="stmt"/>
+        <line num="347" count="1" type="stmt"/>
+        <line num="351" count="1" type="stmt"/>
+      </file>
+    </package>
+    <package name="errors">
+      <metrics statements="20" coveredstatements="18" conditionals="0" coveredconditionals="0" methods="8" coveredmethods="4"/>
+      <file name="bad-request.e.ts" path="C:\Users\hp\Desktop\tuts\Next\cauntr\server\src\errors\bad-request.e.ts">
+        <metrics statements="4" coveredstatements="4" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="1"/>
+        <line num="1" count="1" type="stmt"/>
+        <line num="2" count="1" type="stmt"/>
+        <line num="4" count="1" type="stmt"/>
+        <line num="6" count="10" type="stmt"/>
+      </file>
+      <file name="custom-api.e.ts" path="C:\Users\hp\Desktop\tuts\Next\cauntr\server\src\errors\custom-api.e.ts">
+        <metrics statements="3" coveredstatements="3" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="1"/>
+        <line num="1" count="1" type="stmt"/>
+        <line num="4" count="12" type="stmt"/>
+        <line num="5" count="12" type="stmt"/>
+      </file>
+      <file name="index.ts" path="C:\Users\hp\Desktop\tuts\Next\cauntr\server\src\errors\index.ts">
+        <metrics statements="5" coveredstatements="5" conditionals="0" coveredconditionals="0" methods="4" coveredmethods="2"/>
+        <line num="1" count="1" type="stmt"/>
+        <line num="2" count="1" type="stmt"/>
+        <line num="3" count="1" type="stmt"/>
+        <line num="4" count="1" type="stmt"/>
+        <line num="6" count="21" type="stmt"/>
+      </file>
+      <file name="not-found.e.ts" path="C:\Users\hp\Desktop\tuts\Next\cauntr\server\src\errors\not-found.e.ts">
+        <metrics statements="4" coveredstatements="3" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="0"/>
+        <line num="1" count="1" type="stmt"/>
+        <line num="2" count="1" type="stmt"/>
+        <line num="4" count="1" type="stmt"/>
+        <line num="6" count="0" type="stmt"/>
+      </file>
+      <file name="unauthenticated.e.ts" path="C:\Users\hp\Desktop\tuts\Next\cauntr\server\src\errors\unauthenticated.e.ts">
+        <metrics statements="4" coveredstatements="3" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="0"/>
+        <line num="1" count="1" type="stmt"/>
+        <line num="2" count="1" type="stmt"/>
+        <line num="4" count="1" type="stmt"/>
+        <line num="6" count="0" type="stmt"/>
+      </file>
+    </package>
+    <package name="helpers">
+      <metrics statements="18" coveredstatements="8" conditionals="2" coveredconditionals="0" methods="3" coveredmethods="0"/>
+      <file name="authHelpers.h.ts" path="C:\Users\hp\Desktop\tuts\Next\cauntr\server\src\helpers\authHelpers.h.ts">
+        <metrics statements="17" coveredstatements="7" conditionals="2" coveredconditionals="0" methods="3" coveredmethods="0"/>
+        <line num="1" count="1" type="stmt"/>
+        <line num="2" count="1" type="stmt"/>
+        <line num="3" count="1" type="stmt"/>
+        <line num="4" count="1" type="stmt"/>
+        <line num="6" count="1" type="stmt"/>
+        <line num="7" count="0" type="stmt"/>
+        <line num="8" count="0" type="stmt"/>
+        <line num="10" count="0" type="stmt"/>
+        <line num="13" count="1" type="stmt"/>
+        <line num="14" count="0" type="stmt"/>
+        <line num="15" count="0" type="stmt"/>
+        <line num="17" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="18" count="0" type="stmt"/>
+        <line num="23" count="0" type="stmt"/>
+        <line num="28" count="0" type="stmt"/>
+        <line num="31" count="1" type="stmt"/>
+        <line num="38" count="0" type="stmt"/>
+      </file>
+      <file name="constants.ts" path="C:\Users\hp\Desktop\tuts\Next\cauntr\server\src\helpers\constants.ts">
+        <metrics statements="1" coveredstatements="1" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0"/>
+        <line num="6" count="1" type="stmt"/>
+      </file>
+    </package>
+    <package name="services">
+      <metrics statements="41" coveredstatements="41" conditionals="16" coveredconditionals="13" methods="8" coveredmethods="8"/>
+      <file name="emailService.ts" path="C:\Users\hp\Desktop\tuts\Next\cauntr\server\src\services\emailService.ts">
+        <metrics statements="13" coveredstatements="13" conditionals="3" coveredconditionals="3" methods="4" coveredmethods="4"/>
+        <line num="1" count="2" type="stmt"/>
+        <line num="20" count="2" type="stmt"/>
+        <line num="24" count="10" type="stmt"/>
+        <line num="28" count="5" type="stmt"/>
+        <line num="29" count="5" type="stmt"/>
+        <line num="34" count="2" type="stmt"/>
+        <line num="35" count="2" type="stmt"/>
+        <line num="46" count="4" type="cond" truecount="3" falsecount="0"/>
+        <line num="47" count="1" type="stmt"/>
+        <line num="50" count="3" type="stmt"/>
+        <line num="59" count="18" type="stmt"/>
+        <line num="68" count="3" type="stmt"/>
+        <line num="77" count="2" type="stmt"/>
+      </file>
+      <file name="paystackService.ts" path="C:\Users\hp\Desktop\tuts\Next\cauntr\server\src\services\paystackService.ts">
+        <metrics statements="28" coveredstatements="28" conditionals="13" coveredconditionals="10" methods="4" coveredmethods="4"/>
+        <line num="1" count="2" type="stmt"/>
+        <line num="67" count="2" type="stmt"/>
+        <line num="78" count="15" type="stmt"/>
+        <line num="86" count="4" type="stmt"/>
+        <line num="89" count="4" type="stmt"/>
+        <line num="97" count="3" type="cond" truecount="1" falsecount="0"/>
+        <line num="101" count="1" type="stmt"/>
+        <line num="109" count="2" type="stmt"/>
+        <line num="113" count="2" type="cond" truecount="1" falsecount="0"/>
+        <line num="114" count="1" type="stmt"/>
+        <line num="121" count="1" type="stmt"/>
+        <line num="128" count="1" type="stmt"/>
+        <line num="147" count="4" type="stmt"/>
+        <line num="148" count="4" type="stmt"/>
+        <line num="155" count="3" type="cond" truecount="1" falsecount="0"/>
+        <line num="156" count="1" type="stmt"/>
+        <line num="159" count="2" type="stmt"/>
+        <line num="163" count="2" type="cond" truecount="1" falsecount="0"/>
+        <line num="164" count="1" type="stmt"/>
+        <line num="167" count="1" type="stmt"/>
+        <line num="175" count="1" type="stmt"/>
+        <line num="189" count="3" type="stmt"/>
+        <line num="190" count="3" type="stmt"/>
+        <line num="195" count="2" type="cond" truecount="1" falsecount="0"/>
+        <line num="196" count="1" type="stmt"/>
+        <line num="199" count="1" type="stmt"/>
+        <line num="201" count="1" type="stmt"/>
+        <line num="209" count="2" type="stmt"/>
+      </file>
+    </package>
   </project>
 </coverage>
