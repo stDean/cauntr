@@ -1,4 +1,5 @@
 import Paystack from "@paystack/paystack-sdk";
+import { my_plans } from "../helpers/constants";
 
 interface InitializeParams {
 	email: string;
@@ -64,17 +65,32 @@ interface RefundTransactionResponse {
 	message: string;
 }
 
+interface CustomerResponseData {
+	status: boolean;
+	message: string;
+	data: {
+		id: string;
+		email: string;
+	}[];
+}
+
+interface SubscriptionsResponseData {
+	status: boolean;
+	message: string;
+	data: {
+		id: number;
+		status: string;
+		email_token: string;
+		subscription_code: string;
+		next_payment_date: Date;
+		plan: { plan_code: string };
+	}[];
+}
+
 export class PayStackService {
 	private paystack: Paystack;
 
 	constructor() {
-		// Validate the environment variable
-		// if (!process.env.PAY_STACK_SECRET_KEY) {
-		// 	throw new Error(
-		// 		"PAY_STACK_SECRET_KEY is missing in environment variables"
-		// 	);
-		// }
-
 		this.paystack = new Paystack(process.env.PAY_STACK_SECRET_KEY);
 	}
 
@@ -156,18 +172,16 @@ export class PayStackService {
 				return { error: createSubRes.message, subscription: null };
 			}
 
-			const getSub = (await this.paystack.subscription.fetch({
+			const { getSub } = await this.getSubscription({
 				code: createSubRes?.data.subscription_code,
-			})) as GetSubscriptionResponse;
-
-			if (getSub.status === false) {
-				return { error: getSub.message, subscription: null };
-			}
+			});
 
 			return {
 				subscription: {
 					...createSubRes,
-					endDate: new Date(getSub?.data.next_payment_date),
+					endDate: getSub?.data.next_payment_date
+						? new Date(getSub.data.next_payment_date)
+						: "",
 				},
 				error: null,
 			};
@@ -203,6 +217,78 @@ export class PayStackService {
 				msg: null,
 			};
 		}
+	}
+
+	async cancelSubscription({ email }: { email: string }) {
+		try {
+			const { subscriptions } = await this.getSubscriptions({ email });
+			if (!subscriptions || subscriptions.length === 0) {
+				return { error: "No active subscriptions found" };
+			}
+
+			const disabledRes = await this.paystack.subscription.disable({
+				code: subscriptions[0].subscription_code,
+				token: subscriptions[0].email_token,
+			});
+			if (disabledRes.status === false) {
+				return { error: disabledRes.message };
+			}
+
+			return { success: true };
+		} catch (error: any) {
+			return {
+				error: error.message || "Unknown error occurred",
+				msg: null,
+			};
+		}
+	}
+
+	private async getSubscription({ code }: { code: string }) {
+		const getSub = (await this.paystack.subscription.fetch({
+			code: code,
+		})) as GetSubscriptionResponse;
+
+		if (getSub.status === false) {
+			return { error: getSub.message, subscription: null };
+		}
+
+		return { getSub };
+	}
+
+	private async getSubscriptions({ email }: { email: string }) {
+		const { theCustomer } = await this.getCustomer({ email });
+
+		const subs = (await this.paystack.subscription.list({
+			customer: theCustomer!.id,
+		})) as SubscriptionsResponseData;
+		if (subs.status === false) {
+			return { error: "Something went wrong" };
+		}
+
+		const my_plans_array = Array.from(Object.values(my_plans));
+
+		const subscriptions = subs.data.filter(
+			subscription =>
+				subscription.status === "active" &&
+				my_plans_array.indexOf(subscription.plan.plan_code) !== -1
+		);
+
+		return { subscriptions };
+	}
+
+	private async getCustomer({ email }: { email: string }) {
+		const customerRes = (await this.paystack.customer.list(
+			{}
+		)) as CustomerResponseData;
+		if (customerRes.status === false) {
+			return { error: "No customer with that email" };
+		}
+
+		const theCustomer = customerRes.data.find(
+			customer => customer.email === email
+		);
+
+		return { theCustomer };
 	}
 }
 

@@ -11,6 +11,8 @@ import { setupGracefulShutdown } from "./helpers/shutdown.h.js";
 import { prisma } from "./helpers/prisma.h.js";
 import Routes from "./routes/index.js";
 import PayStackWebhook from "./webhook/paystack.w.js";
+import { ScheduleController } from "./jobs/schedule.j.js";
+import { scheduleJob } from "node-schedule";
 
 const app: Application = express();
 dotenv.config();
@@ -34,12 +36,61 @@ app.use("/api/v1", PayStackWebhook);
 app.use(notFoundMiddleware);
 app.use(errorHandlerMiddleware);
 
+/* SUBSCRIPTION SCHEDULING SYSTEM */
+function initializeSubscriptionJobs() {
+	// Daily check for pending subscription updates
+	scheduleJob("0 12 * * *", async () => {
+		// 12 PM UTC (8 AM EST)
+		try {
+			console.log("Checking for pending subscription updates...");
+			await ScheduleController.processPendingSubscriptions();
+		} catch (error) {
+			console.error("Subscription update check failed:", error);
+		}
+	});
+
+	// Hourly cleanup of expired scheduling data
+	scheduleJob("0 * * * *", async () => {
+		const sixMonthsAgo = new Date(Date.now() - 1000 * 60 * 60 * 24 * 30 * 6);
+		await prisma.company.updateMany({
+			where: {
+				AND: [
+					{ nextBillingDate: { lte: sixMonthsAgo } },
+					{ pendingPlanUpdate: { not: null } },
+				],
+			},
+			data: {
+				pendingPlanUpdate: null,
+				nextBillingDate: null,
+			},
+		});
+	});
+}
+
+async function setupScheduledJobs() {
+	try {
+		// Initialize subscription-related jobs
+		await ScheduleController.initializeScheduledJobs();
+		initializeSubscriptionJobs();
+
+		// Schedule email jobs
+
+		console.log("All scheduled jobs initialized");
+	} catch (error) {
+		console.error("Failed to initialize scheduled jobs:", error);
+		throw error;
+	}
+}
+
 /* APPLICATION STARTUP */
 async function startServer(): Promise<void> {
 	try {
 		// Connect to database
 		await prisma.$connect();
 		console.log("Database connected successfully");
+
+		// Initialize all scheduled jobs
+		await setupScheduledJobs();
 
 		// Start server
 		const port = process.env.PORT || "5001";

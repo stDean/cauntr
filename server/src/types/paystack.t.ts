@@ -20,6 +20,14 @@ declare module "@paystack/paystack-sdk" {
 				start_date: Date;
 			}): Promise<any>;
 			fetch({ code }: { code?: string }): Promise<any>;
+			list({ customer }: { customer?: string }): Promise<any>;
+			disable: ({
+				code,
+				token,
+			}: {
+				code: string;
+				token: string;
+			}) => Promise<any>;
 		};
 		refund: {
 			create({
@@ -29,6 +37,9 @@ declare module "@paystack/paystack-sdk" {
 				transaction: number;
 				amount: string;
 			}): Promise<any>;
+		};
+		customer: {
+			list(params?: any): Promise<any>;
 		};
 	}
 
