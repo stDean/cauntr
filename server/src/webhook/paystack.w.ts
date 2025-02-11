@@ -89,9 +89,8 @@ const handleSubscriptionCreate = async (data: any, tx: any) => {
 		subscription_code,
 		next_payment_date,
 		customer: { email },
-		created_at,
 		status,
-    authorization: { authorization_code },
+		authorization: { authorization_code },
 	} = data;
 
 	const companyResult = await validateCompany({
@@ -111,9 +110,9 @@ const handleSubscriptionCreate = async (data: any, tx: any) => {
 				update: {
 					data: {
 						payStackSubscriptionCode: subscription_code,
-						startDate: new Date(created_at),
+						startDate: new Date(),
 						endDate: new Date(next_payment_date),
-            authorization_code
+						authorization_code,
 					},
 				},
 			},
@@ -164,6 +163,9 @@ router
 							break;
 						case "subscription.create":
 							processedData = await handleSubscriptionCreate(data, tx);
+							break;
+						case "subscription.not_renew":
+							console.log({ msg: "Subscription not renew" });
 							break;
 						// Add other event cases here
 						default:

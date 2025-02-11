@@ -1,6 +1,16 @@
 import Paystack from "@paystack/paystack-sdk";
 import { PayStackService } from "../../../services/paystackService";
 
+// Mock my_plans
+jest.mock("../../../helpers/constants", () => ({
+	my_plans: {
+		BASIC_MONTHLY: "basic_monthly",
+		BASIC_YEARLY: "basic_yearly",
+		PREMIUM_MONTHLY: "premium_monthly",
+		PREMIUM_YEARLY: "premium_yearly",
+	},
+}));
+
 // Mock the Paystack SDK
 jest.mock("@paystack/paystack-sdk");
 const MockedPaystack = Paystack as jest.MockedClass<typeof Paystack>;
@@ -12,6 +22,9 @@ const mockSubscriptionCreate = jest.fn();
 const mockSubscriptionFetch = jest.fn();
 const mockRefundCreate = jest.fn();
 const mockListTransactions = jest.fn();
+const mockSubscriptionList = jest.fn();
+const mockSubscriptionDisable = jest.fn();
+const mockCustomerList = jest.fn();
 
 // Mock Paystack class implementation
 MockedPaystack.mockImplementation(() => ({
@@ -23,9 +36,14 @@ MockedPaystack.mockImplementation(() => ({
 	subscription: {
 		create: mockSubscriptionCreate,
 		fetch: mockSubscriptionFetch,
+		list: mockSubscriptionList,
+		disable: mockSubscriptionDisable,
 	},
 	refund: {
 		create: mockRefundCreate,
+	},
+	customer: {
+		list: mockCustomerList,
 	},
 }));
 
@@ -305,6 +323,144 @@ describe("PayStackService", () => {
 
 			expect(result.error).toBe("API failure");
 			expect(result.msg).toBeNull();
+		});
+	});
+
+	describe("cancelSubscription", () => {
+		it("should cancel an active subscription successfully", async () => {
+			// Mock customer lookup
+			mockCustomerList.mockResolvedValueOnce({
+				status: true,
+				data: [{ id: "cust_123", email: "test@example.com" }],
+			});
+
+			// Mock active subscriptions
+			mockSubscriptionList.mockResolvedValueOnce({
+				status: true,
+				data: [
+					{
+						id: 1,
+						status: "active",
+						email_token: "token_123",
+						subscription_code: "sub_123",
+						plan: { plan_code: "basic_monthly" },
+						next_payment_date: new Date(),
+					},
+				],
+			});
+
+			// Mock successful disable
+			mockSubscriptionDisable.mockResolvedValueOnce({
+				status: true,
+				message: "Subscription disabled",
+			});
+
+			const result = await service.cancelSubscription({
+				email: "test@example.com",
+			});
+
+			expect(result).toEqual({ success: true, error: null });
+			expect(mockSubscriptionDisable).toHaveBeenCalledWith({
+				code: "sub_123",
+				token: "token_123",
+			});
+		});
+
+		it("should handle no active subscriptions found", async () => {
+			mockCustomerList.mockResolvedValueOnce({
+				status: true,
+				data: [{ id: "cust_123", email: "test@example.com" }],
+			});
+
+			mockSubscriptionList.mockResolvedValueOnce({
+				status: true,
+				data: [
+					{
+						status: "expired", // Inactive status
+						plan: { plan_code: "basic_monthly" },
+					},
+				],
+			});
+
+			const result = await service.cancelSubscription({
+				email: "test@example.com",
+			});
+
+			expect(result.error).toBe("No active subscriptions found");
+		});
+
+		it("should handle subscription disable failure", async () => {
+			mockCustomerList.mockResolvedValueOnce({
+				status: true,
+				data: [{ id: "cust_123", email: "test@example.com" }],
+			});
+
+			mockSubscriptionList.mockResolvedValueOnce({
+				status: true,
+				data: [
+					{
+						id: 1,
+						status: "active",
+						email_token: "token_123",
+						subscription_code: "sub_123",
+						plan: { plan_code: "basic_monthly" },
+						next_payment_date: new Date(),
+					},
+				],
+			});
+
+			mockSubscriptionDisable.mockResolvedValueOnce({
+				status: false,
+				message: "Failed to disable subscription",
+			});
+
+			const result = await service.cancelSubscription({
+				email: "test@example.com",
+			});
+
+			expect(result).toEqual({
+				error: "Failed to disable subscription",
+				success: false,
+			});
+		});
+
+		it("should handle customer not found", async () => {
+			// No matching customer in list
+			mockCustomerList.mockResolvedValueOnce({
+				status: true,
+				data: [{ id: "cust_456", email: "other@example.com" }],
+			});
+
+			const result = await service.cancelSubscription({
+				email: "test@example.com",
+			});
+
+			expect(result.error).toContain("Cannot read properties of undefined");
+		});
+
+		it("should handle database errors gracefully", async () => {
+			mockCustomerList.mockRejectedValueOnce(
+				new Error("Database connection failed")
+			);
+
+			const result = await service.cancelSubscription({
+				email: "test@example.com",
+			});
+
+			expect(result.error).toBe("Database connection failed");
+		});
+
+		it("should handle invalid customer list response", async () => {
+			mockCustomerList.mockResolvedValueOnce({
+				status: false,
+				message: "Invalid API key",
+			});
+
+			const result = await service.cancelSubscription({
+				email: "test@example.com",
+			});
+
+			expect(result.error).toContain("Cannot read properties of undefined");
 		});
 	});
 });

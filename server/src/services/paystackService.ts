@@ -223,7 +223,7 @@ export class PayStackService {
 		try {
 			const { subscriptions } = await this.getSubscriptions({ email });
 			if (!subscriptions || subscriptions.length === 0) {
-				return { error: "No active subscriptions found" };
+				return { error: "No active subscriptions found", success: false };
 			}
 
 			const disabledRes = await this.paystack.subscription.disable({
@@ -231,10 +231,10 @@ export class PayStackService {
 				token: subscriptions[0].email_token,
 			});
 			if (disabledRes.status === false) {
-				return { error: disabledRes.message };
+				return { error: disabledRes.message, success: false };
 			}
 
-			return { success: true };
+			return { success: true, error: null };
 		} catch (error: any) {
 			return {
 				error: error.message || "Unknown error occurred",

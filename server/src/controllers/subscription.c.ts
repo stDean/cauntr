@@ -1,11 +1,12 @@
 import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
-import { BadRequestError, NotFoundError } from "../errors";
+import { BadRequestError, CustomAPIError, NotFoundError } from "../errors";
 import { prisma } from "../helpers/prisma.h";
-import { CancelSubscriptionJobs } from "../jobs/cancelSubscriptionJob.t";
-import { UpdateSubscriptionJob } from "../jobs/updateSubscriptionJob.j";
+import { SubscriptionJobs } from "../jobs/subscriptionJob.j";
+import { paystackService } from "../services/paystackService";
+import { my_plans } from "../helpers/constants";
 
-const checkCompany = async ({ user }: any) => {
+export const checkCompany = async ({ user }: any) => {
 	const { email, companyId } = user;
 	const company = await prisma.company.findUnique({
 		where: { company_email: email, id: companyId },
@@ -22,17 +23,24 @@ const checkCompany = async ({ user }: any) => {
 	return { company };
 };
 
+export const checkBilling = async ({ body }: any) => {
+	const { paymentPlan, billingType } = body;
+	if (!paymentPlan || !billingType) {
+		throw new BadRequestError("Billing type and payment plan are required");
+	}
+
+	return { paymentPlan, billingType };
+};
+
 export const SubscriptionCtrl = {
 	updateSubscription: async (req: Request, res: Response): Promise<void> => {
 		const { company } = await checkCompany({ user: req.user });
-		const { billingType, paymentPlan } = req.body;
-		if (!billingType || !paymentPlan) {
-			throw new BadRequestError("Billing type and payment plan are required");
-		}
+		const { billingType, paymentPlan } = await checkBilling({ body: req.body });
 
 		const nextBillingDate = new Date(company.Subscription!.endDate as Date);
 
-		const { transaction } = await UpdateSubscriptionJob.updateSubscriptionJob({
+		// Execute updating job
+		const { transaction } = await SubscriptionJobs.updateSubscriptionJob({
 			billingType,
 			paymentPlan: paymentPlan,
 			email: company.company_email,
@@ -50,9 +58,9 @@ export const SubscriptionCtrl = {
 	cancelSubscription: async (req: Request, res: Response): Promise<void> => {
 		const { company } = await checkCompany({ user: req.user });
 
-		// Execute immediate cancellation tasks
+		// Execute cancellation job
 		const { deactivationDate } =
-			await CancelSubscriptionJobs.cancelSubscriptionJob({
+			await SubscriptionJobs.cancelSubscriptionJob({
 				email: company.company_email,
 				companyId: company.id,
 				cancelDate: company.Subscription!.endDate as Date,
@@ -68,9 +76,29 @@ export const SubscriptionCtrl = {
 		req: Request,
 		res: Response
 	): Promise<void> => {
+		const { company } = await checkCompany({ user: req.user });
+		const { billingType, paymentPlan } = await checkBilling({ body: req.body });
+
+		// Initialize the company as a customer and subscribe them to a plan
+		const { transaction, error } = await paystackService.initializeTransaction({
+			email: company.company_email,
+			plan: my_plans[
+				`${paymentPlan.toLowerCase()}_${billingType.toLowerCase()}`
+			],
+			amount: "5000",
+		});
+
+		if (error) {
+			throw new CustomAPIError(
+				"Payment gateway initialization failed",
+				StatusCodes.BAD_GATEWAY
+			);
+		}
+
 		res.status(StatusCodes.OK).json({
 			msg: "Subscription has been reactivated successfully.",
 			success: true,
+			paymentUrl: transaction.authorization_url,
 		});
 	},
 };
