@@ -28,14 +28,15 @@ const validatePayStackSignature = async (
 	}
 };
 
-const handleChargeSuccess = async (data: any, tx: any) => {
-	const {
-		id,
-		customer: { email },
-		authorization: { authorization_code },
-		status,
-	} = data;
-
+const validateCompany = async ({
+	email,
+	status,
+	tx,
+}: {
+	email: string;
+	status: boolean;
+	tx: any;
+}) => {
 	const company = await tx.company.findUnique({
 		where: { company_email: email },
 		include: { Subscription: { select: { payStackCustomerID: true } } },
@@ -45,9 +46,30 @@ const handleChargeSuccess = async (data: any, tx: any) => {
 		return;
 	}
 
-	if (status !== "success") {
+	if (status) {
 		return;
 	}
+
+	return { company };
+};
+
+const handleChargeSuccess = async (data: any, tx: any) => {
+	const {
+		id,
+		customer: { email },
+		authorization: { authorization_code },
+		status,
+	} = data;
+
+	const companyResult = await validateCompany({
+		email,
+		status: status !== "success",
+		tx,
+	});
+	if (!companyResult) {
+		throw new Error("Company not found or invalid status");
+	}
+	const { company } = companyResult;
 
 	await tx.company.update({
 		where: { company_email: company.company_email },
@@ -56,6 +78,43 @@ const handleChargeSuccess = async (data: any, tx: any) => {
 			Subscription: {
 				update: {
 					data: { authorization_code, transactionId: id.toString() },
+				},
+			},
+		},
+	});
+};
+
+const handleSubscriptionCreate = async (data: any, tx: any) => {
+	const {
+		subscription_code,
+		next_payment_date,
+		customer: { email },
+		created_at,
+		status,
+    authorization: { authorization_code },
+	} = data;
+
+	const companyResult = await validateCompany({
+		email,
+		status: status !== "active",
+		tx,
+	});
+	if (!companyResult) {
+		throw new Error("Company not found or invalid status");
+	}
+	const { company } = companyResult;
+
+	await prisma.company.update({
+		where: { company_email: company.company_email },
+		data: {
+			Subscription: {
+				update: {
+					data: {
+						payStackSubscriptionCode: subscription_code,
+						startDate: new Date(created_at),
+						endDate: new Date(next_payment_date),
+            authorization_code
+					},
 				},
 			},
 		},
@@ -104,7 +163,7 @@ router
 							processedData = await handleChargeSuccess(data, tx);
 							break;
 						case "subscription.create":
-							console.log({ data, msg: "subscription created" });
+							processedData = await handleSubscriptionCreate(data, tx);
 							break;
 						// Add other event cases here
 						default:

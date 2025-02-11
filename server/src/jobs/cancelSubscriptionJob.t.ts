@@ -66,8 +66,8 @@ export class CancelSubscriptionJobs {
 		companyId: string;
 		deactivationDate: Date;
 	}) {
-		const cronExpression = this.generateDeactivationCron(deactivationDate);
-		console.log({ cronExpression });
+		const cronExpression =
+			ScheduleController.generateCronTime(deactivationDate);
 
 		scheduleJob(cronExpression, async () => {
 			console.log(`Executing scheduled deactivation for ${companyId}`);
@@ -77,19 +77,5 @@ export class CancelSubscriptionJobs {
 		console.log(
 			`Scheduled deactivation for ${companyId} at ${deactivationDate.toISOString()}`
 		);
-	}
-
-	/**
-	 * Generates cron expression matching AuthScheduleController's format
-	 * Maintains timezone handling consistency
-	 */
-	static generateDeactivationCron(date: Date) {
-		return [
-			date.getMinutes(),
-			date.getHours() - 1, // Maintain hour adjustment from original code
-			date.getDate(),
-			date.getMonth() + 1,
-			"*",
-		].join(" ");
 	}
 }

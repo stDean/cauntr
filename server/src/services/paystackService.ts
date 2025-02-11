@@ -156,7 +156,7 @@ export class PayStackService {
 		start_date,
 	}: {
 		plan: string;
-		authorization: string;
+		authorization?: string;
 		customer: string;
 		start_date: Date;
 	}) {
@@ -164,8 +164,8 @@ export class PayStackService {
 			const createSubRes = (await this.paystack.subscription.create({
 				customer,
 				plan,
-				authorization,
-				start_date,
+				authorization: authorization || "",
+				start_date: start_date,
 			})) as CreateSubscriptionResponse;
 
 			if (createSubRes.status === false) {

@@ -163,6 +163,7 @@ export class ScheduleController {
 				data: {
 					pendingPlanUpdate: null,
 					nextBillingDate: null,
+					scheduledDeactivation: null,
 					canUpdate: true,
 					canCancel: true,
 					Subscription: {
@@ -202,5 +203,19 @@ export class ScheduleController {
 
 			return updated;
 		});
+	}
+
+	/**
+	 * Generates cron expression matching AuthScheduleController's format
+	 * Maintains timezone handling consistency
+	 */
+	static generateCronTime(date: Date) {
+		return [
+			date.getMinutes(),
+			date.getHours() - 1, // Maintain hour adjustment from original code
+			date.getDate(),
+			date.getMonth() + 1,
+			"*",
+		].join(" ");
 	}
 }
