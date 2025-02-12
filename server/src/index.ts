@@ -11,7 +11,7 @@ import { setupGracefulShutdown } from "./helpers/shutdown.h.js";
 import { prisma } from "./helpers/prisma.h.js";
 import Routes from "./routes/index.js";
 import PayStackWebhook from "./webhook/paystack.w.js";
-import { ScheduleController } from "./jobs/schedule.j.js";
+import { ScheduleJob } from "./jobs/schedule.j.js";
 import { scheduleJob } from "node-schedule";
 
 const app: Application = express();
@@ -43,7 +43,7 @@ function initializeSubscriptionJobs() {
 		// 12 PM UTC (8 AM EST)
 		try {
 			console.log("Checking for pending subscription updates...");
-			await ScheduleController.processPendingSubscriptions();
+			await ScheduleJob.processPendingSubscriptions();
 		} catch (error) {
 			console.error("Subscription update check failed:", error);
 		}
@@ -70,7 +70,7 @@ function initializeSubscriptionJobs() {
 async function setupScheduledJobs() {
 	try {
 		// Initialize subscription-related jobs
-		await ScheduleController.initializeScheduledJobs();
+		await ScheduleJob.initializeScheduledJobs();
 		initializeSubscriptionJobs();
 
 		// Schedule email jobs

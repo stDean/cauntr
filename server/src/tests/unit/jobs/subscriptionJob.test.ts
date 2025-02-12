@@ -1,6 +1,6 @@
 import { scheduleJob } from "node-schedule";
 import { prisma } from "../../../helpers/prisma.h";
-import { ScheduleController } from "../../../jobs/schedule.j";
+import { ScheduleJob } from "../../../jobs/schedule.j";
 import { SubscriptionJobs } from "../../../jobs/subscriptionJob.j";
 import { paystackService } from "../../../services/paystackService";
 import { my_plans } from "../../../helpers/constants";
@@ -47,9 +47,7 @@ describe("SubscriptionJobs", () => {
 			(prisma.company.update as jest.Mock).mockResolvedValue({});
 
 			// Mock scheduling
-			(ScheduleController.generateCronTime as jest.Mock).mockReturnValue(
-				"* * * * *"
-			);
+			(ScheduleJob.generateCronTime as jest.Mock).mockReturnValue("* * * * *");
 
 			const cancelDate = new Date();
 			const result = await SubscriptionJobs.cancelSubscriptionJob({
@@ -199,7 +197,6 @@ describe("SubscriptionJobs", () => {
 				email: mockEmail,
 			};
 			const result = await SubscriptionJobs.processImmediateUpdate(resBody);
-			console.log({ result });
 
 			// Verify Paystack initialization
 			expect(paystackService.initializeTransaction).toHaveBeenCalledWith(
@@ -223,9 +220,7 @@ describe("SubscriptionJobs", () => {
 			const executeDate = new Date("2025-01-01");
 
 			// Mock scheduling
-			(ScheduleController.generateCronTime as jest.Mock).mockReturnValue(
-				"0 0 1 1 *"
-			);
+			(ScheduleJob.generateCronTime as jest.Mock).mockReturnValue("0 0 1 1 *");
 
 			await SubscriptionJobs.scheduleSubscriptionUpdate({
 				executeAt: executeDate,

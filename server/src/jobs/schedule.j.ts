@@ -2,7 +2,7 @@ import { TIER } from "@prisma/client";
 import { prisma } from "../helpers/prisma.h";
 import { scheduleJob } from "node-schedule";
 
-export class ScheduleController {
+export class ScheduleJob {
 	/**
 	 * Initializes scheduled jobs on server startup.
 	 * Restores pending subscription updates and deactivations from database.

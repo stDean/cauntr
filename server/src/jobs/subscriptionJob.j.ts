@@ -4,7 +4,7 @@ import { BadRequestError, NotFoundError } from "../errors";
 import { my_plans } from "../helpers/constants";
 import { paystackService } from "../services/paystackService";
 import { prisma } from "../helpers/prisma.h";
-import { ScheduleController } from "./schedule.j";
+import { ScheduleJob } from "./schedule.j";
 
 export class SubscriptionJobs {
 	/**
@@ -70,11 +70,11 @@ export class SubscriptionJobs {
 		deactivationDate: Date;
 	}) {
 		const cronExpression =
-			ScheduleController.generateCronTime(deactivationDate);
+			ScheduleJob.generateCronTime(deactivationDate);
 
 		scheduleJob(cronExpression, async () => {
 			console.log(`Executing scheduled deactivation for ${companyId}`);
-			await ScheduleController.deactivateCompany(companyId);
+			await ScheduleJob.deactivateCompany(companyId);
 		});
 
 		console.log(
@@ -207,11 +207,11 @@ export class SubscriptionJobs {
 		});
 
 		// Schedule the subscription update.
-		const cronExpression = ScheduleController.generateCronTime(executeAt);
+		const cronExpression = ScheduleJob.generateCronTime(executeAt);
 
 		scheduleJob(cronExpression, async () => {
 			console.log(`Executing scheduled update for ${companyId}`);
-			await ScheduleController.applyPendingSubscription(companyId);
+			await ScheduleJob.applyPendingSubscription(companyId);
 		});
 
 		console.log(

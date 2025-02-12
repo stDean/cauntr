@@ -23,7 +23,6 @@ describe("validateCompanyRegistration Middleware", () => {
 		next = mockNext;
 	});
 
-	// Test 1: Valid request should pass through
 	it("should call next() for valid input", () => {
 		req = mockRequest({
 			company_name: "Acme Corp",
