@@ -218,7 +218,7 @@ describe("ScheduleJob", () => {
 		});
 	});
 
-	describe.only("generateCronTime", () => {
+	describe("generateCronTime", () => {
 		it("should format cron expression correctly", () => {
 			const testDate = new Date("2023-10-01T15:30:00Z"); // UTC time
 			const cron = ScheduleJob.generateCronTime(testDate);

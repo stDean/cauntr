@@ -28,7 +28,7 @@ jest.mock("../../../helpers/prisma.h", () => ({
 			delete: jest.fn(),
 			create: jest.fn(),
 		},
-		users: {
+		user: {
 			create: jest.fn(),
 			findUnique: jest.fn(),
 			update: jest.fn(),
@@ -124,6 +124,7 @@ describe("AuthController", () => {
 									tier: "BASIC",
 									tierType: "MONTHLY",
 									payStackCustomerID: "cust_123",
+									tenantId: "change",
 								},
 							},
 						}),
@@ -212,7 +213,7 @@ describe("AuthController", () => {
 			});
 
 			// Simulate creation of a new user.
-			(prisma.users.create as jest.Mock).mockResolvedValue({
+			(prisma.user.create as jest.Mock).mockResolvedValue({
 				email: "test@test.com",
 				companyId: 1,
 				role: "ADMIN",
@@ -254,7 +255,7 @@ describe("AuthController", () => {
 			expect(prisma.company.update).toHaveBeenCalled();
 			expect(prisma.otp.delete).toHaveBeenCalled();
 			expect(paystackService.refundTransaction).toHaveBeenCalled();
-			expect(prisma.users.create).toHaveBeenCalled();
+			expect(prisma.user.create).toHaveBeenCalled();
 			expect(createJWT).toHaveBeenCalledWith({
 				email: "test@test.com",
 				companyId: 1,
@@ -356,7 +357,7 @@ describe("AuthController", () => {
 			req.body = { email: "test@test.com", password: "password" };
 
 			// Simulate user found in the database with a hashed password.
-			(prisma.users.findUnique as jest.Mock).mockResolvedValue({
+			(prisma.user.findUnique as jest.Mock).mockResolvedValue({
 				email: "test@test.com",
 				password: "hashed_password",
 				companyId: 1,
@@ -374,7 +375,7 @@ describe("AuthController", () => {
 			await AuthController.login(req, res);
 
 			// Assert: Check that the password was verified and a cookie was set.
-			expect(prisma.users.findUnique).toHaveBeenCalledWith({
+			expect(prisma.user.findUnique).toHaveBeenCalledWith({
 				where: { email: "test@test.com" },
 				include: { Company: true },
 			});
@@ -409,7 +410,7 @@ describe("AuthController", () => {
 			// Arrange: Create a request with credentials.
 			req.body = { email: "nonexistent@test.com", password: "password" };
 
-			(prisma.users.findUnique as jest.Mock).mockResolvedValue(null);
+			(prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
 
 			// Act & Assert: Expect a BadRequestError.
 			await expect(AuthController.login(req, res)).rejects.toThrow(
@@ -421,7 +422,7 @@ describe("AuthController", () => {
 			// Arrange: Create a request with invalid password.
 			req.body = { email: "test@test.com", password: "wrongPassword" };
 
-			(prisma.users.findUnique as jest.Mock).mockResolvedValue({
+			(prisma.user.findUnique as jest.Mock).mockResolvedValue({
 				email: "test@test.com",
 				password: "hashedPassword",
 				companyId: 1,
@@ -457,7 +458,7 @@ describe("AuthController", () => {
 			req.body = { email: "test@test.com", password: "newpassword" };
 
 			// Simulate finding the user.
-			(prisma.users.findUnique as jest.Mock).mockResolvedValue({
+			(prisma.user.findUnique as jest.Mock).mockResolvedValue({
 				email: "test@test.com",
 			});
 
@@ -477,7 +478,7 @@ describe("AuthController", () => {
 			await AuthController.forgotPassword(req, res);
 
 			// Assert:
-			expect(prisma.users.findUnique).toHaveBeenCalledWith({
+			expect(prisma.user.findUnique).toHaveBeenCalledWith({
 				where: { email: "test@test.com" },
 			});
 			expect(generateVerificationToken).toHaveBeenCalledWith("test@test.com");
@@ -510,7 +511,7 @@ describe("AuthController", () => {
 			req.body = { email: "test@test.com" };
 
 			// Simulate user found.
-			(prisma.users.findUnique as jest.Mock).mockResolvedValue({
+			(prisma.user.findUnique as jest.Mock).mockResolvedValue({
 				email: "test@test.com",
 			});
 
@@ -532,7 +533,7 @@ describe("AuthController", () => {
 			await AuthController.resendOTP(req, res);
 
 			// Assert:
-			expect(prisma.users.findUnique).toHaveBeenCalledWith({
+			expect(prisma.user.findUnique).toHaveBeenCalledWith({
 				where: { email: "test@test.com" },
 			});
 			expect(emailService.sendVerificationOTP).toHaveBeenCalled();
@@ -547,7 +548,7 @@ describe("AuthController", () => {
 			// Arrange:
 			req.body = { email: "nonexistent@test.com" };
 
-			(prisma.users.findUnique as jest.Mock).mockResolvedValue(null);
+			(prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
 
 			// Act & Assert:
 			await expect(AuthController.resendOTP(req, res)).rejects.toThrow(
@@ -576,7 +577,7 @@ describe("AuthController", () => {
 			(argon2.hash as jest.Mock).mockResolvedValue("hashedNewPassword");
 
 			// Simulate updating the user with the new password.
-			(prisma.users.update as jest.Mock).mockResolvedValue({});
+			(prisma.user.update as jest.Mock).mockResolvedValue({});
 
 			// Simulate deleting the OTP record.
 			(prisma.otp.delete as jest.Mock).mockResolvedValue({});
@@ -589,7 +590,7 @@ describe("AuthController", () => {
 				where: { email: "test@test.com", otp: "123456" },
 			});
 			expect(argon2.hash).toHaveBeenCalledWith("newPassword");
-			expect(prisma.users.update).toHaveBeenCalledWith({
+			expect(prisma.user.update).toHaveBeenCalledWith({
 				where: { email: "test@test.com" },
 				data: { password: "hashedNewPassword" },
 			});

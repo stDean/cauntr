@@ -176,6 +176,10 @@ export class PayStackService {
 				code: createSubRes?.data.subscription_code,
 			});
 
+			if (getSub.status === false) {
+				return { error: getSub.message, subscription: null };
+			}
+
 			return {
 				subscription: {
 					...createSubRes,
@@ -247,10 +251,6 @@ export class PayStackService {
 		const getSub = (await this.paystack.subscription.fetch({
 			code: code,
 		})) as GetSubscriptionResponse;
-
-		if (getSub.status === false) {
-			return { error: getSub.message, subscription: null };
-		}
 
 		return { getSub };
 	}

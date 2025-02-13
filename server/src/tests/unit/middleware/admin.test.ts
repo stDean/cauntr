@@ -6,7 +6,7 @@ import { UnauthenticatedError } from "../../../errors";
 // Mock Prisma client
 jest.mock("../../../helpers/prisma.h", () => ({
 	prisma: {
-		users: {
+		user: {
 			findUnique: jest.fn(),
 		},
 	},
@@ -35,7 +35,7 @@ describe("AdminMiddleware", () => {
 	it("should call next() for admin user", async () => {
 		// Mock user data
 		req = mockRequest({ email: "admin@example.com" });
-		(prisma.users.findUnique as jest.Mock).mockResolvedValue({
+		(prisma.user.findUnique as jest.Mock).mockResolvedValue({
 			email: "admin@example.com",
 			role: "ADMIN",
 		});
@@ -43,7 +43,7 @@ describe("AdminMiddleware", () => {
 		await AdminMiddleware(req, res, next);
 
 		// Verify database query
-		expect(prisma.users.findUnique).toHaveBeenCalledWith({
+		expect(prisma.user.findUnique).toHaveBeenCalledWith({
 			where: { email: "admin@example.com" },
 		});
 
@@ -54,7 +54,7 @@ describe("AdminMiddleware", () => {
 
 	it("should throw error for non-admin user", async () => {
 		req = mockRequest({ email: "user@example.com" });
-		(prisma.users.findUnique as jest.Mock).mockResolvedValue({
+		(prisma.user.findUnique as jest.Mock).mockResolvedValue({
 			email: "user@example.com",
 			role: "USER",
 		});
@@ -72,7 +72,7 @@ describe("AdminMiddleware", () => {
 
 	it("should throw error when user doesn't exist", async () => {
 		req = mockRequest({ email: "missing@example.com" });
-		(prisma.users.findUnique as jest.Mock).mockResolvedValue(null);
+		(prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
 
 		await expect(AdminMiddleware(req, res, next)).rejects.toThrow(
 			"User not found."
@@ -81,7 +81,7 @@ describe("AdminMiddleware", () => {
 
 	it("should throw error when no user in request", async () => {
 		req = mockRequest({ email: "email@email.com" });
-		(prisma.users.findUnique as jest.Mock).mockResolvedValue(null);
+		(prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
 
 		await expect(AdminMiddleware(req, res, next)).rejects.toThrow(
 			UnauthenticatedError
@@ -90,7 +90,7 @@ describe("AdminMiddleware", () => {
 
 	it("should propagate database errors", async () => {
 		req = mockRequest({ email: "admin@example.com" });
-		(prisma.users.findUnique as jest.Mock).mockRejectedValue(
+		(prisma.user.findUnique as jest.Mock).mockRejectedValue(
 			new Error("Database connection failed")
 		);
 

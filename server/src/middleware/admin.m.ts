@@ -9,7 +9,7 @@ export const AdminMiddleware = async (
 ) => {
 	const { email } = req.user;
 
-	const user = await prisma.users.findUnique({
+	const user = await prisma.user.findUnique({
 		where: { email },
 	});
 

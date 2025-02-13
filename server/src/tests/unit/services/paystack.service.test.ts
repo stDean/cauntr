@@ -261,7 +261,10 @@ describe("PayStackService", () => {
 				start_date: new Date(),
 			});
 
+			console.log({ result });
+
 			expect(result.error).toBe("Subscription not found");
+			expect(result.subscription).toBe(null);
 		});
 
 		it("should handle exceptions during subscription creation", async () => {

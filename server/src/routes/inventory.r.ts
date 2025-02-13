@@ -5,6 +5,6 @@ import { AdminMiddleware } from "../middleware/admin.m";
 
 const router = Router();
 
-router.route("/create").post(AuthMiddleware, InventoryCtrl.createInventoryItem);
+router.route("/create").post(AuthMiddleware, InventoryCtrl.createProducts);
 
 export default router;

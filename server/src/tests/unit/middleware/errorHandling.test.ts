@@ -46,7 +46,7 @@ describe("errorHandlerMiddleware", () => {
 
 			expect(res.status).toHaveBeenCalledWith(StatusCodes.CONFLICT);
 			expect(res.json).toHaveBeenCalledWith({
-				msg: "Duplicate value for field(s): [email]",
+				msg: "Duplicate entry - resource already exists",
 			});
 		});
 
@@ -244,7 +244,7 @@ describe("errorHandlerMiddleware", () => {
 			errorHandlerMiddleware(error, req, res, mockNext);
 
 			expect(res.json).toHaveBeenCalledWith({
-				msg: "Duplicate value for field(s): [unknown]",
+				msg: "Duplicate entry - resource already exists",
 			});
 		});
 

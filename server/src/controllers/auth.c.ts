@@ -11,6 +11,7 @@ import { my_plans } from "../helpers/constants";
 import { prisma } from "../helpers/prisma.h";
 import { emailService } from "../services/emailService";
 import { paystackService } from "../services/paystackService";
+import { Tier } from "@prisma/client";
 
 const checkOTP = async ({ email }: { email: string }): Promise<any> => {
 	const existingToken = await prisma.otp.findFirst({
@@ -83,7 +84,8 @@ export const AuthController = {
 					connectOrCreate: {
 						where: { payStackCustomerID: verify.customer.customer_code },
 						create: {
-							tier: billingPlan.toUpperCase(),
+              tenantId: "change",
+							tier: billingPlan.toUpperCase() as Tier,
 							tierType: billingType === "month" ? "MONTHLY" : "YEARLY",
 							payStackCustomerID: verify?.customer.customer_code,
 						},
@@ -167,6 +169,7 @@ export const AuthController = {
 				Subscription: {
 					update: {
 						data: {
+              tenantId: company.tenantId,
 							payStackSubscriptionCode: subscription?.data.subscription_code,
 							startDate: new Date(),
 							endDate: subscription?.endDate,
@@ -192,8 +195,9 @@ export const AuthController = {
 		}
 
 		// Create the company as a user
-		const user = await prisma.users.create({
+		const user = await prisma.user.create({
 			data: {
+        tenantId: company.tenantId,
 				companyId: updatedCompany.id,
 				email: updatedCompany.company_email,
 				password: updatedCompany.password,
@@ -244,7 +248,7 @@ export const AuthController = {
 			throw new BadRequestError("Please provide email and password");
 		}
 
-		const user = await prisma.users.findUnique({
+		const user = await prisma.user.findUnique({
 			where: { email },
 			include: { Company: true },
 		});
@@ -285,7 +289,7 @@ export const AuthController = {
 			throw new BadRequestError("Please provide email and password");
 		}
 
-		const user = await prisma.users.findUnique({
+		const user = await prisma.user.findUnique({
 			where: { email },
 		});
 		if (!user) {
@@ -311,7 +315,7 @@ export const AuthController = {
 			throw new BadRequestError("Email is required.");
 		}
 
-		const existingUser = await prisma.users.findUnique({
+		const existingUser = await prisma.user.findUnique({
 			where: { email },
 		});
 		if (!existingUser) {
@@ -339,7 +343,7 @@ export const AuthController = {
 		}
 
 		const hashPassword = await argon2.hash(password);
-		await prisma.users.update({
+		await prisma.user.update({
 			where: { email },
 			data: { password: hashPassword },
 		});
