@@ -5,6 +5,7 @@ import { prisma } from "../helpers/prisma.h";
 import { SubscriptionJobs } from "../jobs/subscriptionJob.j";
 import { paystackService } from "../services/paystackService";
 import { my_plans } from "../helpers/constants";
+import { Tier } from "@prisma/client";
 
 export const checkCompany = async ({ user }: any) => {
 	const { email, companyId } = user;
@@ -52,19 +53,18 @@ export const SubscriptionCtrl = {
 		res.status(StatusCodes.OK).json({
 			msg: "Subscription has been updated successfully.",
 			success: true,
-			paymentUrl: transaction.authorization_url,
+			paymentUrl: transaction ? transaction.authorization_url : "",
 		});
 	},
 	cancelSubscription: async (req: Request, res: Response): Promise<void> => {
 		const { company } = await checkCompany({ user: req.user });
 
 		// Execute cancellation job
-		const { deactivationDate } =
-			await SubscriptionJobs.cancelSubscriptionJob({
-				email: company.company_email,
-				companyId: company.id,
-				cancelDate: company.Subscription!.endDate as Date,
-			});
+		const { deactivationDate } = await SubscriptionJobs.cancelSubscriptionJob({
+			email: company.company_email,
+			companyId: company.id,
+			cancelDate: company.Subscription!.endDate as Date,
+		});
 
 		res.status(StatusCodes.OK).json({
 			msg: "Subscription has been canceled successfully.",
@@ -94,6 +94,19 @@ export const SubscriptionCtrl = {
 				StatusCodes.BAD_GATEWAY
 			);
 		}
+
+		await prisma.company.update({
+			where: { id: company.id, company_email: company.company_email },
+			data: {
+				subscriptionStatus: "ACTIVE",
+				Subscription: {
+					update: {
+						tier: paymentPlan.toUpperCase() as Tier,
+						tierType: billingType === "month" ? "MONTHLY" : "YEARLY",
+					},
+				},
+			},
+		});
 
 		res.status(StatusCodes.OK).json({
 			msg: "Subscription has been reactivated successfully.",

@@ -195,7 +195,7 @@ describe("ScheduleJob", () => {
 				company: {
 					update: jest.fn().mockResolvedValue({
 						...mockCompany,
-						paymentStatus: "INACTIVE",
+						subscriptionStatus: "CANCELLED",
 					}),
 				},
 			};
@@ -209,7 +209,7 @@ describe("ScheduleJob", () => {
 			expect(mockTx.company.update).toHaveBeenCalledWith({
 				where: { id: "company_123" },
 				data: {
-					paymentStatus: "INACTIVE",
+					subscriptionStatus: "CANCELLED",
 					scheduledDeactivation: null,
 					canCancel: false,
 					canUpdate: true,

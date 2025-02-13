@@ -1,5 +1,5 @@
 import { scheduleJob } from "node-schedule";
-import { TIER } from "@prisma/client";
+import { Tier } from "@prisma/client";
 import { BadRequestError, NotFoundError } from "../errors";
 import { my_plans } from "../helpers/constants";
 import { paystackService } from "../services/paystackService";
@@ -69,8 +69,7 @@ export class SubscriptionJobs {
 		companyId: string;
 		deactivationDate: Date;
 	}) {
-		const cronExpression =
-			ScheduleJob.generateCronTime(deactivationDate);
+		const cronExpression = ScheduleJob.generateCronTime(deactivationDate);
 
 		scheduleJob(cronExpression, async () => {
 			console.log(`Executing scheduled deactivation for ${companyId}`);
@@ -165,14 +164,15 @@ export class SubscriptionJobs {
 		await prisma.company.update({
 			where: { company_email: email },
 			data: {
-				paymentStatus: "ACTIVE",
+				subscriptionStatus: "ACTIVE",
 				canCancel: true,
 				canUpdate: true,
 				pendingPlanUpdate: null,
 				scheduledDeactivation: null,
+				nextBillingDate: null,
 				Subscription: {
 					update: {
-						tier: paymentPlan.toUpperCase() as TIER,
+						tier: paymentPlan.toUpperCase() as Tier,
 						tierType: billingType === "year" ? "YEARLY" : "MONTHLY",
 						startDate: new Date(),
 					},

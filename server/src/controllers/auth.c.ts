@@ -78,7 +78,7 @@ export const AuthController = {
 				company_email,
 				password: hashedPassword,
 				country,
-				paymentStatus: "PENDING",
+				subscriptionStatus: "TRIAL",
 				Subscription: {
 					connectOrCreate: {
 						where: { payStackCustomerID: verify.customer.customer_code },
@@ -162,7 +162,7 @@ export const AuthController = {
 		const updatedCompany = await prisma.company.update({
 			where: { id: company.id },
 			data: {
-				paymentStatus: "ACTIVE",
+				subscriptionStatus: "TRIAL",
 				verified: true,
 				Subscription: {
 					update: {

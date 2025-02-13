@@ -14,19 +14,21 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum PlanStatus {
+// Enums
+enum SUBSCRIPTION_STATUS {
   ACTIVE
-  INACTIVE
-  PENDING
+  TRIAL
+  EXPIRED
+  CANCELLED
 }
 
-enum TIER {
+enum Tier {
   PERSONAL
-  PREMIUM
+  TEAM
   ENTERPRISE
 }
 
-enum BillType {
+enum BillingType {
   MONTHLY
   YEARLY
 }
@@ -36,6 +38,67 @@ enum Role {
   ADMIN
 }
 
+enum ItemStatus {
+  IN_STOCK
+  SOLD
+  SWAPPED
+  RETURNED
+  DAMAGED
+  MAINTENANCE
+}
+
+enum TransactionStatus {
+  DRAFT
+  PENDING
+  COMPLETED
+  CANCELLED
+  RETURNED
+}
+
+enum PaymentStatus {
+  PAID
+  UNPAID
+  PARTIAL
+  OVERDUE
+}
+
+enum Condition {
+  NEW
+  USED
+  REFURBISHED
+  DAMAGED
+}
+
+enum ContactType {
+  SUPPLIER
+  CUSTOMER
+  CREDITOR
+}
+
+enum SwapType {
+  INCOMING
+  OUTGOING
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+  CREDIT
+}
+
+enum NotificationType {
+  SUBSCRIPTION_EXPIRY
+  INVENTORY_LOW
+  PAYMENT_OVERDUE
+  ORDER_SHIPPING
+  STOCK_REORDER
+  MAINTENANCE_REMINDER
+  SECURITY_ALERT
+  USER_ACTIVITY
+}
+
+// Modals
 model Company {
   id                    String               @id @default(uuid())
   company_name          String
@@ -48,29 +111,40 @@ model Company {
   pendingPlanUpdate     String?              @db.VarChar(255)
   nextBillingDate       DateTime?            @db.Timestamp(6)
   scheduledDeactivation DateTime?            @db.Timestamp(6)
-  paymentStatus         PlanStatus           @default(INACTIVE)
+  subscriptionStatus    SUBSCRIPTION_STATUS  @default(TRIAL)
   Subscription          CompanySubscription? @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   subscriptionId        String               @unique
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
-  Users                 Users[]
+  User                  User[]
+  products              Product[]
+  inventory             Inventory[]
+  contacts              Contact[]
+  purchases             Purchase[]
+  sales                 Sale[]
+  swaps                 Swap[]
+  buybacks              Buyback[]
+  credits               Credit[]
+  invoices              Invoice[]
+  ProductInstance       ProductInstance[]
+  notifications         Notification[]
 
   @@index([company_email])
   @@index([id])
 }
 
 model CompanySubscription {
-  id                       String    @id @default(uuid())
+  id                       String      @id @default(uuid())
   payStackCustomerID       String
   payStackSubscriptionCode String?
   authorization_code       String?
   transactionId            String?
-  tier                     TIER      @default(PERSONAL)
-  tierType                 BillType  @default(MONTHLY)
+  tier                     Tier        @default(PERSONAL)
+  tierType                 BillingType @default(MONTHLY)
   startDate                DateTime?
   endDate                  DateTime?
-  createdAt                DateTime  @default(now())
-  updatedAt                DateTime  @updatedAt
+  createdAt                DateTime    @default(now())
+  updatedAt                DateTime    @updatedAt
   company                  Company?
 
   @@unique([payStackCustomerID])
@@ -87,17 +161,20 @@ model Otp {
   verified  Boolean  @default(false)
 }
 
-model Users {
-  id         String   @id @default(uuid())
-  first_name String?
-  last_name  String?
-  email      String   @unique
-  password   String
-  role       Role     @default(EMPLOYEE)
-  companyId  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  Company    Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+model User {
+  id            String         @id @default(uuid())
+  first_name    String?
+  last_name     String?
+  email         String         @unique
+  password      String
+  role          Role           @default(EMPLOYEE)
+  companyId     String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  Company       Company?       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  addedProducts Product[]      @relation("ProductAddedBy")
+  soldSales     Sale[]         @relation("SaleSoldBy")
+  notifications Notification[]
 
   @@index([id])
   @@index([email])
@@ -112,4 +189,283 @@ model WebhookEvent {
   attempts    Int       @default(0)
   processedAt DateTime?
   createdAt   DateTime  @default(now())
+}
+
+// PRODUCT HIERARCHY
+model Product {
+  id             String            @id @default(uuid())
+  sku            String // Required SKU
+  name           String
+  description    String?
+  brand          String
+  type           String
+  basePrice      Decimal
+  requiresSerial Boolean           @default(false)
+  companyId      String
+  addedById      String
+  supplierId     String
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  Company        Company           @relation(fields: [companyId], references: [id])
+  Supplier       Contact           @relation(fields: [supplierId], references: [id])
+  variants       Variant[]
+  Inventory      Inventory[]
+  instances      ProductInstance[]
+  AddedBy        User              @relation("ProductAddedBy", fields: [addedById], references: [id])
+  notifications  Notification[]
+
+  @@unique([sku, companyId], name: "unique_sku_per_company")
+  @@index([supplierId])
+  @@index([id])
+  @@index([sku])
+  @@index([name])
+  @@index([companyId])
+}
+
+model ProductInstance {
+  id             String     @id @default(uuid())
+  serialNo       String?    @unique
+  status         ItemStatus @default(IN_STOCK)
+  condition      Condition  @default(NEW)
+  location       String
+  companyId      String
+  productId      String
+  purchaseId     String?
+  saleId         String?
+  buybackId      String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  outgoingSwapId String?    @map("swap_outgoing_id")
+  incomingSwapId String?    @map("swap_incoming_id")
+  variantId      String?
+
+  Product      Product   @relation(fields: [productId], references: [id])
+  Company      Company   @relation(fields: [companyId], references: [id])
+  Purchase     Purchase? @relation(fields: [purchaseId], references: [id])
+  Sale         Sale?     @relation(fields: [saleId], references: [id])
+  SwapOutgoing Swap?     @relation("SwapOutgoing", fields: [outgoingSwapId], references: [id])
+  SwapIncoming Swap?     @relation("SwapIncoming", fields: [incomingSwapId], references: [id])
+  Buyback      Buyback?  @relation(fields: [buybackId], references: [id])
+  Variant      Variant?  @relation(fields: [variantId], references: [id])
+
+  @@index([productId])
+  @@index([serialNo])
+  @@index([status])
+  @@index([companyId])
+}
+
+model Variant {
+  id        String            @id @default(uuid())
+  name      String // e.g., "Color", "Size"
+  options   Json // e.g., ["Red", "Blue"], ["S", "M", "L"]
+  productId String
+  Product   Product           @relation(fields: [productId], references: [id])
+  Inventory Inventory[]
+  instances ProductInstance[]
+
+  @@index([productId])
+}
+
+model Inventory {
+  id        String   @id @default(uuid())
+  quantity  Int      @default(0)
+  location  String // e.g., "Warehouse A", "Store 123"
+  minStock  Int      @default(10)
+  reorderAt Int      @default(5)
+  productId String
+  variantId String?
+  companyId String
+  Product   Product  @relation(fields: [productId], references: [id])
+  Variant   Variant? @relation(fields: [variantId], references: [id])
+  Company   Company? @relation(fields: [companyId], references: [id])
+
+  @@unique([productId, variantId, location])
+  @@index([location])
+  @@index([companyId])
+}
+
+// CONTACT MANAGEMENT
+model Contact {
+  id        String      @id @default(uuid())
+  type      ContactType // SUPPLIER, CUSTOMER, CREDITOR
+  name      String
+  email     String?     @unique
+  phone     String
+  companyId String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  Company   Company     @relation(fields: [companyId], references: [id])
+  product   Product[]
+  purchases Purchase[]
+  sales     Sale[]
+  credits   Credit[]
+  invoices  Invoice[]
+
+  @@index([id])
+  @@index([name])
+  @@index([email])
+  @@index([companyId])
+}
+
+// TRANSACTION SYSTEM
+model Purchase {
+  id         String            @id @default(uuid())
+  date       DateTime          @default(now())
+  total      Decimal
+  status     TransactionStatus @default(PENDING)
+  notes      String?
+  companyId  String
+  supplierId String
+  items      ProductInstance[]
+  Invoice    Invoice?
+  Company    Company           @relation(fields: [companyId], references: [id])
+  Supplier   Contact           @relation(fields: [supplierId], references: [id])
+
+  @@index([supplierId])
+  @@index([id])
+  @@index([date])
+  @@index([companyId])
+}
+
+model Sale {
+  id         String            @id @default(uuid())
+  date       DateTime          @default(now())
+  total      Decimal
+  status     TransactionStatus @default(COMPLETED)
+  notes      String?
+  companyId  String
+  customerId String?
+  soldById   String?
+  items      ProductInstance[]
+  Invoice    Invoice?
+  Company    Company           @relation(fields: [companyId], references: [id])
+  Customer   Contact?          @relation(fields: [customerId], references: [id])
+  SoldBy     User?             @relation(fields: [soldById], references: [id], name: "SaleSoldBy")
+  Buyback    Buyback[]
+
+  @@index([customerId])
+  @@index([date])
+  @@index([companyId])
+  @@index([id])
+}
+
+model Swap {
+  id        String            @id @default(uuid())
+  date      DateTime          @default(now())
+  type      SwapType // INCOMING, OUTGOING
+  companyId String
+  outgoing  ProductInstance[] @relation("SwapOutgoing")
+  incoming  ProductInstance[] @relation("SwapIncoming")
+  notes     String?
+  Company   Company           @relation(fields: [companyId], references: [id])
+
+  @@index([date])
+  @@index([companyId])
+  @@index([id])
+}
+
+model Buyback {
+  id           String            @id @default(uuid())
+  date         DateTime          @default(now())
+  originalSale Sale              @relation(fields: [saleId], references: [id])
+  saleId       String
+  items        ProductInstance[]
+  refundAmount Decimal
+  companyId    String
+  Company      Company           @relation(fields: [companyId], references: [id])
+
+  @@index([saleId])
+}
+
+// FINANCIAL TRACKING
+model Invoice {
+  id            String         @id @default(uuid())
+  amount        Decimal
+  date          DateTime       @default(now())
+  dueDate       DateTime
+  status        PaymentStatus  @default(UNPAID)
+  companyId     String
+  purchaseId    String?        @unique // One-to-one with Purchase
+  saleId        String?        @unique // One-to-one with Sale
+  contactId     String?
+  payments      Payment[]
+  Company       Company        @relation(fields: [companyId], references: [id])
+  Purchase      Purchase?      @relation(fields: [purchaseId], references: [id])
+  Sale          Sale?          @relation(fields: [saleId], references: [id])
+  Contact       Contact?       @relation(fields: [contactId], references: [id])
+  notifications Notification[]
+
+  @@index([dueDate])
+  @@index([id])
+  @@index([companyId])
+}
+
+model Payment {
+  id        String        @id @default(uuid())
+  amount    Decimal
+  date      DateTime      @default(now())
+  method    PaymentMethod
+  invoiceId String
+  Invoice   Invoice       @relation(fields: [invoiceId], references: [id])
+
+  @@index([id])
+}
+
+model Credit {
+  id         String          @id @default(uuid())
+  amount     Decimal
+  balance    Decimal
+  creditorId String
+  companyId  String
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  payments   CreditPayment[] // Track multiple payments
+  Creditor   Contact         @relation(fields: [creditorId], references: [id])
+  Company    Company         @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
+  @@index([id])
+}
+
+model CreditPayment {
+  id       String        @id @default(uuid())
+  amount   Decimal
+  date     DateTime      @default(now())
+  method   PaymentMethod
+  creditId String
+  notes    String?
+  Credit   Credit        @relation(fields: [creditId], references: [id])
+
+  @@index([date])
+  @@index([id])
+}
+
+// NOTIFICATION
+model Notification {
+  id               String           @id @default(uuid())
+  type             NotificationType
+  companyId        String
+  userId           String? // Specific user target (if applicable)
+  relatedProductId String? // For inventory-related notifications
+  relatedInvoiceId String? // For payment-related notifications
+  message          String
+  metadata         Json? // Additional structured data
+  isRead           Boolean          @default(false)
+  createdAt        DateTime         @default(now())
+  readAt           DateTime?
+  scheduledAt      DateTime? // For future scheduled notifications
+
+  // Relationships
+  Company Company  @relation(fields: [companyId], references: [id])
+  User    User?    @relation(fields: [userId], references: [id])
+  Product Product? @relation(fields: [relatedProductId], references: [id])
+  Invoice Invoice? @relation(fields: [relatedInvoiceId], references: [id])
+
+  @@index([type])
+  @@index([isRead])
+  @@index([createdAt])
+  @@index([companyId])
+  @@index([userId])
+  @@index([relatedInvoiceId])
+  @@index([relatedProductId])
 }

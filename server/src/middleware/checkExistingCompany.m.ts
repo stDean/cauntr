@@ -21,7 +21,7 @@ export const checkExistingCompany = async (
 			// Handle unverified company with active payment and no paystack customer code
 			if (
 				!existingCompany.verified &&
-				existingCompany.paymentStatus === "PENDING" &&
+				existingCompany.subscriptionStatus !== "ACTIVE" &&
 				!existingCompany!.Subscription!.payStackCustomerID
 			) {
 				await handleOtpForCompany(existingCompany.company_email);
@@ -36,7 +36,7 @@ export const checkExistingCompany = async (
 			// Handle verified company with inactive payment
 			if (
 				existingCompany.verified &&
-				existingCompany.paymentStatus === "PENDING"
+				existingCompany.subscriptionStatus === "TRIAL"
 			) {
 				res.status(StatusCodes.BAD_REQUEST).json({
 					success: false,

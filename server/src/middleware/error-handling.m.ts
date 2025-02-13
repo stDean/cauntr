@@ -32,9 +32,7 @@ export const errorHandlerMiddleware: ErrorRequestHandler = (
 
 		switch (prismaError.code) {
 			case "P2002": // Unique constraint
-				customError.msg = `Duplicate value for field(s): [${
-					err.meta?.target?.join(", ") || "unknown"
-				}]`;
+				customError.msg = "Duplicate entry - resource already exists";
 				customError.statusCode = StatusCodes.CONFLICT;
 				break;
 

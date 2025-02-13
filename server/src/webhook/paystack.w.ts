@@ -74,7 +74,6 @@ const handleChargeSuccess = async (data: any, tx: any) => {
 	await tx.company.update({
 		where: { company_email: company.company_email },
 		data: {
-			paymentStatus: "ACTIVE",
 			Subscription: {
 				update: {
 					data: { authorization_code, transactionId: id.toString() },
@@ -103,9 +102,11 @@ const handleSubscriptionCreate = async (data: any, tx: any) => {
 	}
 	const { company } = companyResult;
 
-	await prisma.company.update({
+	await tx.company.update({
 		where: { company_email: company.company_email },
 		data: {
+			canUpdate: true,
+			canCancel: true,
 			Subscription: {
 				update: {
 					data: {
@@ -165,7 +166,8 @@ router
 							processedData = await handleSubscriptionCreate(data, tx);
 							break;
 						case "subscription.not_renew":
-							console.log({ msg: "Subscription not renew" });
+						case "subscription.disable":
+							console.log({ msg: "Subscription not renew or disable." });
 							break;
 						// Add other event cases here
 						default:

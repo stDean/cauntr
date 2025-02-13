@@ -66,7 +66,7 @@ describe("checkExistingCompany Middleware", () => {
 				const mockCompany = {
 					company_email: "existing@company.com",
 					verified: false,
-					paymentStatus: "PENDING",
+					subscriptionStatus: "TRIAL",
 					Subscription: { payStackCustomerID: null },
 					id: 1,
 				};
@@ -96,7 +96,7 @@ describe("checkExistingCompany Middleware", () => {
 				const mockCompany = {
 					company_email: "existing@company.com",
 					verified: true,
-					paymentStatus: "PENDING",
+					subscriptionStatus: "TRIAL",
 					Subscription: { payStackCustomerID: "cust_123" },
 					id: 1,
 				};
@@ -121,7 +121,7 @@ describe("checkExistingCompany Middleware", () => {
 				const mockCompany = {
 					company_email: "existing@company.com",
 					verified: true,
-					paymentStatus: "ACTIVE",
+					subscriptionStatus: "ACTIVE",
 					Subscription: { payStackCustomerID: "cust_123" },
 					id: 1,
 				};

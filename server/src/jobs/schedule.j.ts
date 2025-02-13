@@ -1,4 +1,4 @@
-import { TIER } from "@prisma/client";
+import { Tier } from "@prisma/client";
 import { prisma } from "../helpers/prisma.h";
 import { scheduleJob } from "node-schedule";
 
@@ -166,10 +166,11 @@ export class ScheduleJob {
 					scheduledDeactivation: null,
 					canUpdate: true,
 					canCancel: true,
+          subscriptionStatus: "ACTIVE",
 					Subscription: {
 						update: {
 							tierType: type === "year" ? "YEARLY" : "MONTHLY",
-							tier: plan.toUpperCase() as TIER,
+							tier: plan.toUpperCase() as Tier,
 						},
 					},
 				},
@@ -194,7 +195,7 @@ export class ScheduleJob {
 			const updated = await tx.company.update({
 				where: { id: companyId },
 				data: {
-					paymentStatus: "INACTIVE",
+					subscriptionStatus: "CANCELLED",
 					scheduledDeactivation: null,
 					canCancel: false,
 					canUpdate: true,

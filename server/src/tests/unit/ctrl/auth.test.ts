@@ -116,7 +116,7 @@ describe("AuthController", () => {
 						company_email: "test@test.com",
 						password: "hashed_password",
 						country: "NG",
-						paymentStatus: "PENDING",
+						subscriptionStatus: "TRIAL",
 						Subscription: expect.objectContaining({
 							connectOrCreate: {
 								where: { payStackCustomerID: "cust_123" },
@@ -198,7 +198,7 @@ describe("AuthController", () => {
 			// Simulate successful update of the company.
 			(prisma.company.update as jest.Mock).mockResolvedValue({
 				id: 1,
-				paymentStatus: "ACTIVE",
+				subscriptionStatus: "ACTIVE",
 				verified: true,
 			});
 
