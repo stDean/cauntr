@@ -27,6 +27,9 @@ router
 		[AuthMiddleware, AdminMiddleware],
 		InventoryCtrl.restoreProductQuantity
 	);
+router
+	.route("/products/:sku/hard")
+	.delete([AuthMiddleware, AdminMiddleware], InventoryCtrl.hardDeleteProduct);
 
 router
 	.route("/products/:sku")

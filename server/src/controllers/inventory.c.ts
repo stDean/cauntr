@@ -573,4 +573,49 @@ export const InventoryCtrl = {
 			data: updatedProduct,
 		});
 	},
+	hardDeleteProduct: async (req: Request, res: Response) => {
+		const {
+			params: { sku },
+			user: { email, companyId },
+		} = req;
+		const { product, company } = await productHelper({ sku, email, companyId });
+
+		if (product.quantity > 0) {
+			// The product still has active units.
+			// Remove deletion events so that the deleted quantity cannot be restored.
+			await prisma.productDeletionEvent.deleteMany({
+				where: { productId: product.id },
+			});
+
+			res.status(200).json({
+				success: true,
+				message:
+					"Deletion events removed. Product remains with active quantity.",
+			});
+			return;
+		} else {
+			// No active quantity remains; fully delete the product.
+			await prisma.$transaction(async tx => {
+				// Remove all deletion events associated with the product.
+				await tx.productDeletionEvent.deleteMany({
+					where: { productId: product.id },
+				});
+				// Delete the product itself.
+				await tx.product.delete({
+					where: {
+						sku_companyId_tenantId: {
+							sku,
+							companyId: req.user.companyId,
+							tenantId: req.user.tenantId,
+						},
+					},
+				});
+			});
+
+			res.status(200).json({
+				success: true,
+				message: "Product deleted as no active quantity remains.",
+			});
+		}
+	},
 };

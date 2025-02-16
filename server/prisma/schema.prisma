@@ -150,20 +150,19 @@ model WebhookEvent {
 
 // Inventory 
 model Product {
-  id              String    @id @default(uuid())
-  tenantId        String
-  sku             String    @unique
-  productName     String
-  description     String?   @db.VarChar(250)
-  brand           String
-  productType     String
-  costPrice       Decimal   @default(0) @db.Decimal(12, 2)
-  sellingPrice    Decimal   @db.Decimal(12, 2)
-  serialNo        String?   @unique
-  purchaseDate    DateTime  @default(now())
-  condition       Condition @default(NEW)
-  quantity        Int       @default(1)
-  deletedQuantity Int       @default(0)
+  id           String    @id @default(uuid())
+  tenantId     String
+  sku          String    @unique
+  productName  String
+  description  String?   @db.VarChar(250)
+  brand        String
+  productType  String
+  costPrice    Decimal   @default(0) @db.Decimal(12, 2)
+  sellingPrice Decimal   @db.Decimal(12, 2)
+  serialNo     String?   @unique
+  purchaseDate DateTime  @default(now())
+  condition    Condition @default(NEW)
+  quantity     Int       @default(1)
 
   // Audits
   createdAt DateTime @default(now())
