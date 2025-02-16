@@ -6,9 +6,9 @@ import {
 	createJWT,
 	generateVerificationToken,
 	handleOtpForCompany,
-} from "../helpers/authHelpers.h";
-import { my_plans } from "../helpers/constants";
-import { prisma } from "../helpers/prisma.h";
+} from "../utils/authHelpers.h";
+import { my_plans } from "../utils/constants";
+import { prisma } from "../utils/prisma.h";
 import { emailService } from "../services/emailService";
 import { paystackService } from "../services/paystackService";
 import { Tier } from "@prisma/client";
@@ -84,7 +84,7 @@ export const AuthController = {
 					connectOrCreate: {
 						where: { payStackCustomerID: verify.customer.customer_code },
 						create: {
-              tenantId: "change",
+							tenantId: "change",
 							tier: billingPlan.toUpperCase() as Tier,
 							tierType: billingType === "month" ? "MONTHLY" : "YEARLY",
 							payStackCustomerID: verify?.customer.customer_code,
@@ -146,7 +146,7 @@ export const AuthController = {
 			.Subscription!.tierType.replace("LY", "")
 			.toLowerCase()}`;
 		const startDate = new Date();
-		startDate.setDate(startDate.getDate() + 7); // 7-day trial period
+		startDate.setDate(startDate.getDate() + 1); // 7-day trial period
 
 		// Create a paystack subscription for the company
 		const { error, subscription } = await paystackService.createSubscription({
@@ -169,7 +169,7 @@ export const AuthController = {
 				Subscription: {
 					update: {
 						data: {
-              tenantId: company.tenantId,
+							tenantId: company.tenantId,
 							payStackSubscriptionCode: subscription?.data.subscription_code,
 							startDate: new Date(),
 							endDate: subscription?.endDate,
@@ -197,7 +197,7 @@ export const AuthController = {
 		// Create the company as a user
 		const user = await prisma.user.create({
 			data: {
-        tenantId: company.tenantId,
+				tenantId: company.tenantId,
 				companyId: updatedCompany.id,
 				email: updatedCompany.company_email,
 				password: updatedCompany.password,

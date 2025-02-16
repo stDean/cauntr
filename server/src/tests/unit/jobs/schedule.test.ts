@@ -1,5 +1,5 @@
 import { ScheduleJob } from "../../../jobs/schedule.j";
-import { prisma } from "../../../helpers/prisma.h";
+import { prisma } from "../../../utils/prisma.h";
 import { scheduleJob } from "node-schedule";
 
 jest.mock("../../../helpers/prisma.h", () => ({

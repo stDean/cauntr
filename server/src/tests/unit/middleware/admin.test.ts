@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { AdminMiddleware } from "../../../middleware/admin.m";
-import { prisma } from "../../../helpers/prisma.h";
+import { prisma } from "../../../utils/prisma.h";
 import { UnauthenticatedError } from "../../../errors";
 
 // Mock Prisma client

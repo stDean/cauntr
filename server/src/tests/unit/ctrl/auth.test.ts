@@ -1,14 +1,14 @@
 import { Request, Response } from "express";
 import { paystackService } from "../../../services/paystackService";
 import { AuthController } from "../../../controllers/auth.c";
-import { prisma } from "../../../helpers/prisma.h";
+import { prisma } from "../../../utils/prisma.h";
 import argon2 from "argon2";
 import { StatusCodes } from "http-status-codes";
 import {
 	createJWT,
 	generateVerificationToken,
 	handleOtpForCompany,
-} from "../../../helpers/authHelpers.h";
+} from "../../../utils/authHelpers.h";
 import { BadRequestError, CustomAPIError } from "../../../errors";
 import { emailService } from "../../../services/emailService";
 

@@ -40,6 +40,11 @@ enum Role {
   ADMIN
 }
 
+enum Condition {
+  NEW
+  USED
+}
+
 enum AuditAction {
   CREATE
   UPDATE
@@ -63,11 +68,11 @@ model Company {
   nextBillingDate       DateTime?            @db.Timestamp(6)
   scheduledDeactivation DateTime?            @db.Timestamp(6)
   subscriptionStatus    SubscriptionStatus   @default(TRIAL)
-  Subscription          CompanySubscription? @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
-  subscriptionId        String               @unique
+  Subscription          CompanySubscription?
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
   User                  User[]
+  Product               Product[]
   auditLog              AuditLog[]
 
   @@index([company_email])
@@ -86,9 +91,15 @@ model CompanySubscription {
   tierType                 BillingType @default(MONTHLY)
   startDate                DateTime?
   endDate                  DateTime?
+  last4                    String?
+  exp_month                String?
+  exp_year                 String?
+  card_type                String?
+  bank                     String?
   createdAt                DateTime    @default(now())
   updatedAt                DateTime    @updatedAt
-  company                  Company?
+  companyId                String?     @unique
+  company                  Company?    @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([payStackCustomerID])
   @@unique([payStackSubscriptionCode])
@@ -118,6 +129,7 @@ model User {
   updatedAt  DateTime  @updatedAt
   deletedAt  DateTime?
   Company    Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  Product    Product[]
 
   @@index([id])
   @@index([email])
@@ -136,6 +148,64 @@ model WebhookEvent {
   createdAt   DateTime  @default(now())
 }
 
+// Inventory 
+model Product {
+  id              String    @id @default(uuid())
+  tenantId        String
+  sku             String    @unique
+  productName     String
+  description     String?   @db.VarChar(250)
+  brand           String
+  productType     String
+  costPrice       Decimal   @default(0) @db.Decimal(12, 2)
+  sellingPrice    Decimal   @db.Decimal(12, 2)
+  serialNo        String?   @unique
+  purchaseDate    DateTime  @default(now())
+  condition       Condition @default(NEW)
+  quantity        Int       @default(1)
+  deletedQuantity Int       @default(0)
+
+  // Audits
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  createdBy            User                   @relation(fields: [createdById], references: [id])
+  createdById          String
+  Company              Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  companyId            String
+  Supplier             Supplier               @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  supplierId           String
+  ProductDeletionEvent ProductDeletionEvent[]
+
+  @@unique([sku, companyId, tenantId])
+  @@index([productName])
+  @@index([sku])
+}
+
+model ProductDeletionEvent {
+  id           String   @id @default(uuid())
+  productId    String
+  deletionDate DateTime
+  quantity     Int // The number of units deleted in this event
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+//TODO:Add a variant schema for products that have variations e.g color, size e.t.c 
+
+model Supplier {
+  id        String    @id @default(uuid())
+  name      String
+  contact   String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+
+  @@unique([name, contact])
+  @@index([id])
+  @@index([name])
+}
+
 model AuditLog {
   id         String      @id @default(uuid())
   action     AuditAction // CREATE, UPDATE, DELETE
@@ -147,7 +217,7 @@ model AuditLog {
   newData    Json? // Updated state
   companyId  String?
   createdAt  DateTime    @default(now())
-  Company    Company?    @relation(fields: [companyId], references: [id])
+  Company    Company?    @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([companyId])

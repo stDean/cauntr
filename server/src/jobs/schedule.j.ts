@@ -1,5 +1,5 @@
 import { Tier } from "@prisma/client";
-import { prisma } from "../helpers/prisma.h";
+import { prisma } from "../utils/prisma.h";
 import { scheduleJob } from "node-schedule";
 
 export class ScheduleJob {
@@ -166,7 +166,7 @@ export class ScheduleJob {
 					scheduledDeactivation: null,
 					canUpdate: true,
 					canCancel: true,
-          subscriptionStatus: "ACTIVE",
+					subscriptionStatus: "ACTIVE",
 					Subscription: {
 						update: {
 							tierType: type === "year" ? "YEARLY" : "MONTHLY",

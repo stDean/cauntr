@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
 import * as SubscriptionModule from "../../../controllers/subscription.c";
 import { BadRequestError, NotFoundError } from "../../../errors";
-import { my_plans } from "../../../helpers/constants";
+import { my_plans } from "../../../utils/constants";
 import { SubscriptionJobs } from "../../../jobs/subscriptionJob.j";
 import { paystackService } from "../../../services/paystackService";
 

@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
-import { prisma } from "../../../helpers/prisma.h";
-import { handleOtpForCompany } from "../../../helpers/authHelpers.h";
+import { prisma } from "../../../utils/prisma.h";
+import { handleOtpForCompany } from "../../../utils/authHelpers.h";
 import { CustomAPIError } from "../../../errors";
 import { checkExistingCompany } from "../../../middleware/checkExistingCompany.m";
 

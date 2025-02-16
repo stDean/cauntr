@@ -1,5 +1,5 @@
 import Paystack from "@paystack/paystack-sdk";
-import { my_plans } from "../helpers/constants";
+import { my_plans } from "../utils/constants";
 
 interface InitializeParams {
 	email: string;

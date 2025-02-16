@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response, Router } from "express";
-import { prisma } from "../helpers/prisma.h";
+import { prisma } from "../utils/prisma.h";
 import crypto from "crypto";
 
 const router = Router();
@@ -89,7 +89,14 @@ const handleSubscriptionCreate = async (data: any, tx: any) => {
 		next_payment_date,
 		customer: { email },
 		status,
-		authorization: { authorization_code },
+		authorization: {
+			authorization_code,
+			last4,
+			exp_month,
+			exp_year,
+			card_type,
+			bank,
+		},
 	} = data;
 
 	const companyResult = await validateCompany({
@@ -114,6 +121,11 @@ const handleSubscriptionCreate = async (data: any, tx: any) => {
 						startDate: new Date(),
 						endDate: new Date(next_payment_date),
 						authorization_code,
+						last4,
+						exp_month,
+						exp_year,
+						card_type,
+						bank,
 					},
 				},
 			},

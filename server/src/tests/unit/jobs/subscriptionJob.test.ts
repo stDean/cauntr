@@ -1,9 +1,9 @@
 import { scheduleJob } from "node-schedule";
-import { prisma } from "../../../helpers/prisma.h";
+import { prisma } from "../../../utils/prisma.h";
 import { ScheduleJob } from "../../../jobs/schedule.j";
 import { SubscriptionJobs } from "../../../jobs/subscriptionJob.j";
 import { paystackService } from "../../../services/paystackService";
-import { my_plans } from "../../../helpers/constants";
+import { my_plans } from "../../../utils/constants";
 
 // Mock my_plans
 jest.mock("../../../helpers/constants", () => ({

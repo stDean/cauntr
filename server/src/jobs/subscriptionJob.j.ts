@@ -1,9 +1,9 @@
 import { scheduleJob } from "node-schedule";
 import { Tier } from "@prisma/client";
 import { BadRequestError, NotFoundError } from "../errors";
-import { my_plans } from "../helpers/constants";
+import { my_plans } from "../utils/constants";
 import { paystackService } from "../services/paystackService";
-import { prisma } from "../helpers/prisma.h";
+import { prisma } from "../utils/prisma.h";
 import { ScheduleJob } from "./schedule.j";
 
 export class SubscriptionJobs {

@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { UnauthenticatedError } from "../errors";
-import { prisma } from "../helpers/prisma.h";
+import { prisma } from "../utils/prisma.h";
 
 export const AdminMiddleware = async (
 	req: Request,
