@@ -4,7 +4,7 @@ import { prisma } from "../../../utils/prisma.h";
 import { UnauthenticatedError } from "../../../errors";
 
 // Mock Prisma client
-jest.mock("../../../helpers/prisma.h", () => ({
+jest.mock("../../../utils/prisma.h", () => ({
 	prisma: {
 		user: {
 			findUnique: jest.fn(),

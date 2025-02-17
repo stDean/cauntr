@@ -5,7 +5,7 @@ import { handleOtpForCompany } from "../../../utils/authHelpers.h";
 import { CustomAPIError } from "../../../errors";
 import { checkExistingCompany } from "../../../middleware/checkExistingCompany.m";
 
-jest.mock("../../../helpers/prisma.h", () => ({
+jest.mock("../../../utils/prisma.h", () => ({
 	prisma: {
 		company: {
 			findUnique: jest.fn(),
@@ -14,7 +14,7 @@ jest.mock("../../../helpers/prisma.h", () => ({
 	},
 }));
 
-jest.mock("../../../helpers/authHelpers.h");
+jest.mock("../../../utils/authHelpers.h");
 
 const mockRequest = (body: any = {}) => ({ body } as Request);
 const mockResponse = () => {

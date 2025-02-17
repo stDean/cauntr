@@ -7,7 +7,7 @@ import { SubscriptionJobs } from "../../../jobs/subscriptionJob.j";
 import { paystackService } from "../../../services/paystackService";
 
 // Mock my_plans
-jest.mock("../../../helpers/constants", () => ({
+jest.mock("../../../utils/constants", () => ({
 	my_plans: {
 		BASIC_MONTHLY: "basic_monthly",
 		BASIC_YEARLY: "basic_yearly",
@@ -17,7 +17,7 @@ jest.mock("../../../helpers/constants", () => ({
 }));
 
 // Mock dependencies
-jest.mock("../../../helpers/prisma.h", () => ({
+jest.mock("../../../utils/prisma.h", () => ({
 	prisma: {
 		company: {
 			create: jest.fn(),

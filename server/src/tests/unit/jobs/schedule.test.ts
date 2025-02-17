@@ -2,7 +2,7 @@ import { ScheduleJob } from "../../../jobs/schedule.j";
 import { prisma } from "../../../utils/prisma.h";
 import { scheduleJob } from "node-schedule";
 
-jest.mock("../../../helpers/prisma.h", () => ({
+jest.mock("../../../utils/prisma.h", () => ({
 	prisma: {
 		company: {
 			findMany: jest.fn(),

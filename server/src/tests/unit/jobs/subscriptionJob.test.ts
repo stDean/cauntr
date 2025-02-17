@@ -6,7 +6,7 @@ import { paystackService } from "../../../services/paystackService";
 import { my_plans } from "../../../utils/constants";
 
 // Mock my_plans
-jest.mock("../../../helpers/constants", () => ({
+jest.mock("../../../utils/constants", () => ({
 	my_plans: {
 		BASIC_MONTHLY: "basic_monthly",
 		BASIC_YEARLY: "basic_yearly",
@@ -16,7 +16,7 @@ jest.mock("../../../helpers/constants", () => ({
 }));
 
 // Mock external dependencies
-jest.mock("../../../helpers/prisma.h", () => ({
+jest.mock("../../../utils/prisma.h", () => ({
 	prisma: { company: { update: jest.fn() } },
 }));
 jest.mock("node-schedule", () => ({

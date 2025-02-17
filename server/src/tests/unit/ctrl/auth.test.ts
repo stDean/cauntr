@@ -15,7 +15,7 @@ import { emailService } from "../../../services/emailService";
 // ---------------------------------------------------------------------------
 // Mocks for external modules
 // ---------------------------------------------------------------------------
-jest.mock("../../../helpers/prisma.h", () => ({
+jest.mock("../../../utils/prisma.h", () => ({
 	prisma: {
 		company: {
 			create: jest.fn(),
@@ -35,7 +35,7 @@ jest.mock("../../../helpers/prisma.h", () => ({
 		},
 	},
 }));
-jest.mock("../../../helpers/authHelpers.h");
+jest.mock("../../../utils/authHelpers.h");
 jest.mock("../../../services/paystackService");
 jest.mock("../../../services/emailService");
 jest.mock("argon2");

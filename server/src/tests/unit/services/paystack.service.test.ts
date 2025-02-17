@@ -2,7 +2,7 @@ import Paystack from "@paystack/paystack-sdk";
 import { PayStackService } from "../../../services/paystackService";
 
 // Mock my_plans
-jest.mock("../../../helpers/constants", () => ({
+jest.mock("../../../utils/constants", () => ({
 	my_plans: {
 		BASIC_MONTHLY: "basic_monthly",
 		BASIC_YEARLY: "basic_yearly",

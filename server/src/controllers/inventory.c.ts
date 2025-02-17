@@ -26,7 +26,7 @@ interface ProductInput {
 	purchaseDate?: Date;
 }
 
-const productHelper = async ({
+export const productHelper = async ({
 	sku,
 	email,
 	companyId,
@@ -53,7 +53,7 @@ const productHelper = async ({
 	return { company, product };
 };
 
-const validateProduct = (product: ProductInput, isBulk = false) => {
+export const validateProduct = (product: ProductInput, isBulk = false) => {
 	const errors: { field: string; message: string }[] = [];
 	const requiredFields = [
 		"productName",
@@ -412,6 +412,7 @@ export const InventoryCtrl = {
 			"description",
 			"brand",
 			"productType",
+			"productName",
 			"sellingPrice",
 			"costPrice",
 			"sku",
