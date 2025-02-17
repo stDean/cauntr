@@ -8,8 +8,9 @@ const router = Router();
 router.route("/create").post(AuthMiddleware, InventoryCtrl.createProduct);
 router.route("/create/bulk").post(AuthMiddleware, InventoryCtrl.createProducts);
 
+router.route("/summary").get(AuthMiddleware, InventoryCtrl.getInventorySummary);
 router
-	.route("/summary")
+	.route("/products/summary")
 	.get(AuthMiddleware, InventoryCtrl.getProductCountsByTypeAndBrand);
 router
 	.route("/related/:type/:brand")
@@ -30,6 +31,12 @@ router
 router
 	.route("/products/:sku/hard")
 	.delete([AuthMiddleware, AdminMiddleware], InventoryCtrl.hardDeleteProduct);
+router
+	.route("/products/hard")
+	.delete(
+		[AuthMiddleware, AdminMiddleware],
+		InventoryCtrl.bulkHardDeleteSoftDeletedProducts
+	);
 
 router
 	.route("/products/:sku")
