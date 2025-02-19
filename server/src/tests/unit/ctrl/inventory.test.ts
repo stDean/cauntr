@@ -1,14 +1,14 @@
+import { Condition, Product } from "@prisma/client";
 import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
-import { prisma } from "../../../utils/prisma.h";
 import * as InventoryCtrlModule from "../../../controllers/inventory.c";
-import { BadRequestError, NotFoundError } from "../../../errors";
+import { supplierService } from "../../../services/supplierService";
 import {
-	userNdCompany,
-	getOrCreateSupplier,
 	generateSKU,
+	userNdCompany,
+	productHelper,
 } from "../../../utils/helper";
-import { Condition, Product, Supplier } from "@prisma/client";
+import { prisma } from "../../../utils/prisma.h";
 
 jest.mock("../../../utils/helper");
 jest.mock("../../../utils/prisma.h", () => ({
@@ -95,7 +95,9 @@ describe("Inventory Controller", () => {
 				user: { id: "user1" },
 				company: { id: "company1", tenantId: "tenant1" },
 			});
-			(getOrCreateSupplier as jest.Mock).mockResolvedValue({ id: "supplier1" });
+			(supplierService.getOrCreate as jest.Mock).mockResolvedValue({
+				id: "supplier1",
+			});
 			(generateSKU as jest.Mock).mockReturnValue("SKU123");
 
 			const mockProduct = { id: "1", ...validProduct };
@@ -107,7 +109,7 @@ describe("Inventory Controller", () => {
 				email: "test@test.com",
 				companyId: "1",
 			});
-			expect(getOrCreateSupplier).toHaveBeenCalledWith({
+			expect(supplierService.getOrCreate).toHaveBeenCalledWith({
 				supplierName: "Test Supplier",
 				supplierPhone: "1234567890",
 			});
@@ -318,12 +320,24 @@ describe("Inventory Controller", () => {
 			);
 			const res = mockResponse();
 
-			const mockGroupedData = [
+			// Mock the value returned from prisma.product.groupBy.
+			const mockGroupByReturn = [
 				{
 					productType: "ELECTRONICS",
 					brand: "Brand A",
-					_count: { productType: 5 },
-					_sum: { quantity: 10 },
+					_count: { _all: 3 },
+					_sum: { quantity: 10, sellingPrice: 300 },
+				},
+			];
+
+			// Expected output after processing the groupBy result:
+			const expectedResult = [
+				{
+					productType: "ELECTRONICS",
+					brand: "Brand A",
+					categories: 3,
+					stockCount: 10,
+					inventoryValue: 1000, // 10 * (300 / 3) = 1000
 				},
 			];
 
@@ -331,7 +345,9 @@ describe("Inventory Controller", () => {
 				company: { id: "company1", tenantId: "tenant1" },
 			});
 
-			(prisma.product.groupBy as jest.Mock).mockResolvedValue(mockGroupedData);
+			(prisma.product.groupBy as jest.Mock).mockResolvedValue(
+				mockGroupByReturn
+			);
 
 			await InventoryCtrlModule.InventoryCtrl.getProductCountsByTypeAndBrand(
 				req,
@@ -341,7 +357,7 @@ describe("Inventory Controller", () => {
 			expect(res.status).toHaveBeenCalledWith(StatusCodes.OK);
 			expect(res.json).toHaveBeenCalledWith({
 				success: true,
-				data: mockGroupedData,
+				data: expectedResult,
 			});
 		});
 	});
@@ -410,12 +426,10 @@ describe("Inventory Controller", () => {
 			const res = mockResponse();
 
 			// We use a spy on the helper function. In a real test, you might refactor to allow dependency injection.
-			const productHelperSpy = jest
-				.spyOn(InventoryCtrlModule, "productHelper")
-				.mockResolvedValue({
-					company: { id: "comp1", tenantId: "tenant1" },
-					product: { id: "prod1", productName: "Product 1" } as Product,
-				});
+			(productHelper as jest.Mock).mockResolvedValue({
+				company: { id: "comp1", tenantId: "tenant1" },
+				product: { id: "prod1", productName: "Product 1" } as Product,
+			});
 
 			await InventoryCtrlModule.InventoryCtrl.getProductBySKU(
 				req as Request,
@@ -429,7 +443,6 @@ describe("Inventory Controller", () => {
 					data: expect.objectContaining({ productName: "Product 1" }),
 				})
 			);
-			productHelperSpy.mockRestore();
 		});
 	});
 
@@ -442,12 +455,10 @@ describe("Inventory Controller", () => {
 			);
 			const res = mockResponse();
 
-			const productHelperSpy = jest
-				.spyOn(InventoryCtrlModule, "productHelper")
-				.mockResolvedValue({
-					company: { id: "comp1", tenantId: "tenant1" },
-					product: { id: "prod1", productName: "Product 1" } as Product,
-				});
+			(productHelper as jest.Mock).mockResolvedValue({
+				company: { id: "comp1", tenantId: "tenant1" },
+				product: { id: "prod1", productName: "Product 1" } as Product,
+			});
 
 			(prisma.product.findUnique as jest.Mock).mockResolvedValue({
 				id: "1",
@@ -473,7 +484,6 @@ describe("Inventory Controller", () => {
 				})
 			);
 			expect(res.status).toHaveBeenCalledWith(StatusCodes.OK);
-			productHelperSpy.mockRestore();
 		});
 
 		it("should reject invalid fields", async () => {
@@ -484,12 +494,10 @@ describe("Inventory Controller", () => {
 			);
 			const res = mockResponse();
 
-			const productHelperSpy = jest
-				.spyOn(InventoryCtrlModule, "productHelper")
-				.mockResolvedValue({
-					company: { id: "comp1", tenantId: "tenant1" },
-					product: { id: "prod1", productName: "Product 1" } as Product,
-				});
+			(productHelper as jest.Mock).mockResolvedValue({
+				company: { id: "comp1", tenantId: "tenant1" },
+				product: { id: "prod1", productName: "Product 1" } as Product,
+			});
 
 			await InventoryCtrlModule.InventoryCtrl.updateProduct(req, res);
 
@@ -498,8 +506,6 @@ describe("Inventory Controller", () => {
 					data: expect.not.objectContaining({ supplierId: "new-supplier" }),
 				})
 			);
-
-			productHelperSpy.mockRestore();
 		});
 	});
 
@@ -512,12 +518,10 @@ describe("Inventory Controller", () => {
 			);
 			const res = mockResponse();
 
-			const productHelperSpy = jest
-				.spyOn(InventoryCtrlModule, "productHelper")
-				.mockResolvedValue({
-					company: { id: "comp1", tenantId: "tenant1" },
-					product: { id: "prod1", productName: "Product 1" } as Product,
-				});
+			(productHelper as jest.Mock).mockResolvedValue({
+				company: { id: "comp1", tenantId: "tenant1" },
+				product: { id: "prod1", productName: "Product 1" } as Product,
+			});
 
 			const mockProduct = {
 				id: "1",
@@ -549,8 +553,6 @@ describe("Inventory Controller", () => {
 				message: "Product deleted successfully",
 				data: expect.any(Object),
 			});
-
-			productHelperSpy.mockRestore();
 		});
 
 		it("should throw error if deleteQuantity is invalid", async () => {
@@ -630,12 +632,10 @@ describe("Inventory Controller", () => {
 			);
 			const res = mockResponse();
 
-			const productHelperSpy = jest
-				.spyOn(InventoryCtrlModule, "productHelper")
-				.mockResolvedValue({
-					company: { id: "company123", tenantId: "tenant123" },
-					product: { id: "prod1", quantity: 8 } as Product,
-				});
+			(productHelper as jest.Mock).mockResolvedValue({
+				company: { id: "company123", tenantId: "tenant123" },
+				product: { id: "prod1", quantity: 8 } as Product,
+			});
 
 			(prisma.productDeletionEvent.findMany as jest.Mock).mockResolvedValue([
 				{ id: "event1", deletionDate: new Date("2023-01-01"), quantity: 1 },
@@ -658,7 +658,6 @@ describe("Inventory Controller", () => {
 					data: { id: "prod1", quantity: 10 },
 				})
 			);
-			productHelperSpy.mockRestore();
 		});
 	});
 
@@ -671,12 +670,10 @@ describe("Inventory Controller", () => {
 			);
 			const res = mockResponse();
 
-			const productHelperSpy = jest
-				.spyOn(InventoryCtrlModule, "productHelper")
-				.mockResolvedValue({
-					product: { id: "prod1", quantity: 5 } as any,
-					company: { id: "company123", tenantId: "tenant123" },
-				});
+			(productHelper as jest.Mock).mockResolvedValue({
+				product: { id: "prod1", quantity: 5 } as any,
+				company: { id: "company123", tenantId: "tenant123" },
+			});
 			await InventoryCtrlModule.InventoryCtrl.hardDeleteProduct(
 				req as Request,
 				res
@@ -692,7 +689,6 @@ describe("Inventory Controller", () => {
 						"Deletion events removed. Product remains with active quantity.",
 				})
 			);
-			productHelperSpy.mockRestore();
 		});
 
 		it("should delete product if no active quantity remains", async () => {
@@ -703,12 +699,10 @@ describe("Inventory Controller", () => {
 			);
 			const res = mockResponse();
 
-			const productHelperSpy = jest
-				.spyOn(InventoryCtrlModule, "productHelper")
-				.mockResolvedValue({
-					company: { id: "comp1", tenantId: "tenant1" },
-					product: { id: "prod1", productName: "Product 1" } as Product,
-				});
+			(productHelper as jest.Mock).mockResolvedValue({
+				company: { id: "comp1", tenantId: "tenant1" },
+				product: { id: "prod1", productName: "Product 1" } as Product,
+			});
 			await InventoryCtrlModule.InventoryCtrl.hardDeleteProduct(
 				req as Request,
 				res
@@ -721,7 +715,6 @@ describe("Inventory Controller", () => {
 					message: "Product deleted as no active quantity remains.",
 				})
 			);
-			productHelperSpy.mockRestore();
 		});
 	});
 

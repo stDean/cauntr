@@ -1,160 +1,87 @@
+import { Condition, Product } from "@prisma/client";
 import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
 import { BadRequestError, NotFoundError } from "../errors";
-import { prisma } from "../utils/prisma.h";
+import { productService } from "../services/productService";
+import { supplierService } from "../services/supplierService";
 import {
 	generateSKU,
-	getOrCreateSupplier,
-	userNdCompany,
+	handleBuybackProduct,
 	parseDate,
+	productHelper,
+	userNdCompany,
 } from "../utils/helper";
-import { Condition, Product } from "@prisma/client";
-
-interface ProductInput {
-	productName: string;
-	brand: string;
-	productType: string;
-	sellingPrice: number;
-	supplierName: string;
-	supplierPhone: string;
-	sku?: string;
-	description?: string;
-	costPrice?: number;
-	serialNo?: string;
-	condition?: string;
-	quantity?: number;
-	purchaseDate?: Date;
-}
-
-export const productHelper = async ({
-	sku,
-	email,
-	companyId,
-}: {
-	sku: string;
-	email: string;
-	companyId: string;
-}) => {
-	const { company } = await userNdCompany({ email, companyId });
-	const product: Product | null = await prisma.product.findUnique({
-		where: {
-			sku_companyId_tenantId: {
-				sku,
-				companyId: company.id,
-				tenantId: company.tenantId,
-			},
-		},
-	});
-
-	if (!product) {
-		throw new NotFoundError("Product not found or has been deleted.");
-	}
-
-	return { company, product };
-};
-
-export const validateProduct = (product: ProductInput, isBulk = false) => {
-	const errors: { field: string; message: string }[] = [];
-	const requiredFields = [
-		"productName",
-		"productType",
-		"sellingPrice",
-		"brand",
-		"supplierName",
-		"supplierPhone",
-	];
-
-	requiredFields.forEach(field => {
-		if (!product[field as keyof ProductInput]?.toString().trim()) {
-			errors.push({
-				field,
-				message: `${field} is required`,
-			});
-		}
-	});
-
-	if (!product.sku && !generateSKU(product.productType)) {
-		errors.push({
-			field: "sku",
-			message: "sku is required",
-		});
-	}
-
-	return errors.length > 0 ? { errors, success: false } : { success: true };
-};
+import {
+	ProductInput,
+	productUtils,
+	responseUtils,
+} from "../utils/helperUtils";
+import { prisma } from "../utils/prisma.h";
 
 export const InventoryCtrl = {
 	/**
-	 * Create a single product.
-	 * - Retrieves the current user and company info.
-	 * - Validates the product input.
-	 * - Retrieves or creates the supplier.
-	 * - Normalizes the product condition.
-	 * - Creates the product record in the database.
+	 * Create a single product (or handle a buy-back scenario).
+	 *
+	 * Steps:
+	 * 1. Retrieve the current user and company info based on the authenticated request.
+	 * 2. Validate the incoming product input.
+	 * 3. Retrieve or create the supplier based on the supplier name and phone.
+	 * 4. Normalize the product condition (defaulting to NEW if not provided or invalid).
+	 * 5. Check if a product with the provided serial number already exists:
+	 *    - If an existing product is found:
+	 *       a. Upsert a customer record using the supplier's details.
+	 *       b. If the existing product has a quantity greater than zero, update its quantity by adding the new quantity and create a buy-back transaction.
+	 *       c. Otherwise, update the product’s details and create a buy-back transaction.
+	 *    - If no existing product is found, create a new product record.
+	 * 6. Return a CREATED response with the created product or the buy-back transaction details.
 	 */
 	createProduct: async (req: Request, res: Response) => {
-		// Extract companyId and email from the authenticated user.
-		const { companyId, email } = req.user;
-		// Cast the request body to the expected ProductInput type.
 		const productInput = req.body as ProductInput;
+		const { user, company } = await userNdCompany(req.user);
+		const errors = productUtils.validateProduct(productInput);
 
-		// Retrieve the user and company data based on the provided credentials.
-		const { user, company } = await userNdCompany({ email, companyId });
-		// Validate the product input; if invalid, return a BAD_REQUEST response.
-		const validationResult = validateProduct(productInput);
-		if (!validationResult.success) {
-			res.status(StatusCodes.BAD_REQUEST).json({
-				msg: "Product creation failed.",
-				success: false,
-				errors: validationResult.errors,
-			});
-			return;
+		if (errors) {
+			return responseUtils.error(
+				res,
+				"Validation failed",
+				StatusCodes.BAD_REQUEST,
+				errors
+			);
 		}
 
 		// Retrieve or create the supplier using the supplier's name and phone number.
-		const supplier = await getOrCreateSupplier({
-			supplierName: productInput.supplierName,
-			supplierPhone: productInput.supplierPhone,
-		});
+		const supplier = await supplierService.getOrCreate(
+			productInput.supplierName,
+			productInput.supplierPhone
+		);
 
-		// Set the product condition; default to NEW if the provided condition is not valid.
-		let condition: Condition = Condition.NEW;
-		if (productInput.condition) {
-			const upperCondition = productInput.condition.toUpperCase();
-			condition = Object.values(Condition).includes(upperCondition as Condition)
-				? (upperCondition as Condition)
-				: Condition.NEW;
+		if (productInput.serialNo) {
+			const existingProduct = await productService.findProductBySerial(
+				productInput.serialNo,
+				company.id
+			);
+
+			if (existingProduct) {
+				return handleBuybackProduct({
+					res,
+					existingProduct,
+					productInput,
+					user,
+					company,
+					supplier,
+				});
+			}
 		}
 
 		// Create the product record using the validated and normalized data.
-		const createdProduct = await prisma.product.create({
-			data: {
-				tenantId: company.tenantId,
-				sku: productInput.sku || generateSKU(productInput.productType)!,
-				productName: productInput.productName,
-				description: productInput.description || null,
-				brand: productInput.brand,
-				productType: productInput.productType,
-				costPrice: Number(productInput.costPrice || 0),
-				sellingPrice: Number(productInput.sellingPrice),
-				serialNo: productInput.serialNo || null,
-				purchaseDate: productInput.purchaseDate
-					? new Date(productInput.purchaseDate)
-					: new Date(),
-				condition,
-				quantity: Number(productInput.quantity || 1),
-				createdById: user.id,
-				supplierId: supplier.id,
-				companyId: company.id,
-			},
-		});
-
-		// Return a CREATED response with the created product.
-		res.status(StatusCodes.CREATED).json({
-			msg: "Product created successfully",
-			success: true,
-			data: createdProduct,
-		});
+		const productData = productService.createProductData(
+			productInput,
+			user,
+			company,
+			supplier
+		);
+		const createdProduct = await prisma.product.create({ data: productData });
+		responseUtils.success(res, createdProduct, StatusCodes.CREATED);
 	},
 
 	/**
@@ -166,109 +93,36 @@ export const InventoryCtrl = {
 	 * - Processes each product creation concurrently and handles errors individually.
 	 */
 	createProducts: async (req: Request, res: Response) => {
-		const { companyId, email } = req.user;
-
 		// Ensure that the request body is an array.
 		if (!Array.isArray(req.body)) {
 			throw new BadRequestError("Request body must be an array of products");
 		}
 
 		// Retrieve the current user and company information.
-		const { user, company } = await userNdCompany({ email, companyId });
+		const { user, company } = await userNdCompany(req.user);
 
-		// Phase 1: Validate each product in the request body.
-		const validationErrors = req.body
-			.map((product, index) => {
-				const requiredFields = [
-					"Product Name",
-					"Item Type",
-					"Selling Price",
-					"Brand",
-					"Supplier Name",
-					"Supplier Phone Number",
-				];
-				// Identify missing required fields.
-				const missing = requiredFields.filter(
-					field => !product[field]?.toString().trim()
-				);
-				return missing.length ? { index, missing } : null;
-			})
-			.filter(Boolean);
-
-		// If any validation errors are found, return them.
-		if (validationErrors.length > 0) {
-			res.status(StatusCodes.BAD_REQUEST).json({
-				msg: "Validation errors in input data",
-				errors: validationErrors,
-			});
-			return;
-		}
-
-		// Phase 2: Process supplier information.
-		const supplierDetails = req.body.map(p => ({
-			name: p["Supplier Name"].trim(),
-			contact: p["Supplier Phone Number"].toString().trim(),
-		}));
-		// Remove duplicate suppliers.
-		const uniqueSuppliers = [
-			...new Map(
-				supplierDetails.map(s => [`${s.name}|${s.contact}`, s])
-			).values(),
-		];
-
-		// Fetch suppliers that already exist in the database.
-		const existingSuppliers = await prisma.supplier.findMany({
-			where: {
-				OR: uniqueSuppliers.map(s => ({
-					AND: [{ name: s.name }, { contact: s.contact }],
-				})),
-			},
-		});
-
-		// Identify suppliers that need to be created.
-		const newSuppliers = uniqueSuppliers.filter(
-			s =>
-				!existingSuppliers.some(
-					es => es.name === s.name && es.contact === s.contact
-				)
+		const suppliers = await supplierService.bulkGetOrCreate(
+			req.body.map(p => ({
+				name: p["Supplier Name"],
+				phone: p["Supplier Phone Number"],
+			}))
 		);
 
-		// Create any new suppliers in bulk, skipping duplicates.
-		if (newSuppliers.length > 0) {
-			await prisma.supplier.createMany({
-				data: newSuppliers,
-				skipDuplicates: true,
-			});
-		}
-
-		// Fetch all suppliers after creation.
-		const allSuppliers = await prisma.supplier.findMany({
-			where: {
-				OR: uniqueSuppliers.map(s => ({
-					AND: [{ name: s.name }, { contact: s.contact }],
-				})),
-			},
-		});
-
-		// Phase 3: Process each product for creation.
 		const results: any = [];
 		const errors: any = [];
 
 		await Promise.all(
-			req.body.map(async product => {
+			req.body.map(async (product, index) => {
 				try {
-					// Find the corresponding supplier for the current product.
-					const supplier = allSuppliers.find(
+					const supplier = suppliers.find(
 						s =>
-							s.name === product["Supplier Name"].trim() &&
-							s.contact === product["Supplier Phone Number"].toString().trim()
+							s.name === product["Supplier Name"] &&
+							s.contact === product["Supplier Phone Number"]
 					);
-					if (!supplier) {
-						throw new Error("Associated supplier not found");
-					}
 
-					// Prepare product data for creation.
-					const productData: any = {
+					if (!supplier) throw new BadRequestError("Supplier not found");
+
+					const dataInput: any = {
 						tenantId: company.tenantId,
 						sku: product["SKU"] || generateSKU(product["Item Type"]),
 						productName: product["Product Name"],
@@ -288,37 +142,22 @@ export const InventoryCtrl = {
 						companyId: company.id,
 					};
 
-					// Create the product and add the result to the results array.
-					const result = await prisma.product.create({
-						data: productData,
-					});
-					results.push(result);
+					const productData = productService.createProductData(
+						dataInput,
+						user,
+						company,
+						supplier
+					);
+					results.push(await prisma.product.create({ data: productData }));
 				} catch (error: any) {
-					// On error, record the error message along with the product's serial number.
-					errors.push({
-						product: product["Serial Number"],
-						error: error.message.split("\n").shift() || "Duplicate entry.",
-					});
+					errors.push({ index, error: error.message });
 				}
 			})
 		);
 
-		// Phase 4: Respond based on whether there were errors.
-		if (errors.length > 0) {
-			res.status(StatusCodes.MULTI_STATUS).json({
-				created: results.length,
-				failed: errors.length,
-				data: results,
-				errors,
-			});
-			return;
-		}
-
-		res.status(StatusCodes.CREATED).json({
-			message: "All products created successfully",
-			data: results,
-			success: true,
-		});
+		errors.length > 0
+			? responseUtils.multiStatus(res, results, errors)
+			: responseUtils.success(res, results, StatusCodes.CREATED);
 	},
 
 	/**
@@ -332,20 +171,39 @@ export const InventoryCtrl = {
 
 		// Group products by productType and brand,
 		// count the occurrences and sum the quantity for each group.
-		const products = await prisma.product.groupBy({
-			where: { companyId: company.id, tenantId: company.tenantId },
+		const groupedProducts = await prisma.product.groupBy({
+			where: {
+				companyId: company.id,
+				tenantId: company.tenantId,
+				quantity: { gt: 0 },
+			},
 			by: ["productType", "brand"],
-			_count: {
-				productType: true,
-			},
-			_sum: {
-				quantity: true,
-			},
+			_count: { _all: true },
+			_sum: { quantity: true, sellingPrice: true },
 		});
+
+		const result = groupedProducts
+			.filter(p => p._sum.quantity !== 0)
+			.map(group => {
+				// Compute an average selling price for the group.
+				const count = group._count._all;
+				const totalSellingPrice = group._sum.sellingPrice || 0;
+				const avgSellingPrice = count ? Number(totalSellingPrice) / count : 0;
+				// Calculate inventory value as total quantity * average selling price.
+				const inventoryValue = (group._sum.quantity || 0) * avgSellingPrice;
+
+				return {
+					categories: group._count._all,
+					stockCount: group._sum.quantity,
+					productType: group.productType,
+					brand: group.brand,
+					inventoryValue, // Total inventory value for this group
+				};
+			});
 
 		res.status(StatusCodes.OK).json({
 			success: true,
-			data: products,
+			data: result,
 		});
 	},
 
@@ -371,9 +229,11 @@ export const InventoryCtrl = {
 			throw new NotFoundError("No products found");
 		}
 
+		const allProduct = products.filter(p => p.quantity !== 0);
+
 		res.status(StatusCodes.OK).json({
 			success: true,
-			data: products,
+			data: allProduct,
 		});
 	},
 
@@ -533,9 +393,7 @@ export const InventoryCtrl = {
 			where: {
 				companyId: company.id,
 				tenantId: company.tenantId,
-				ProductDeletionEvent: {
-					some: {},
-				},
+				ProductDeletionEvent: { some: {} },
 			},
 			select: {
 				sku: true,

@@ -117,10 +117,8 @@ CREATE TABLE `Product` (
     `purchaseDate` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `condition` ENUM('NEW', 'USED') NOT NULL DEFAULT 'NEW',
     `quantity` INTEGER NOT NULL DEFAULT 1,
-    `deletedQuantity` INTEGER NOT NULL DEFAULT 0,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
-    `deletedAt` DATETIME(3) NULL,
     `createdById` VARCHAR(191) NOT NULL,
     `companyId` VARCHAR(191) NOT NULL,
     `supplierId` VARCHAR(191) NOT NULL,
@@ -130,6 +128,16 @@ CREATE TABLE `Product` (
     INDEX `Product_productName_idx`(`productName`),
     INDEX `Product_sku_idx`(`sku`),
     UNIQUE INDEX `Product_sku_companyId_tenantId_key`(`sku`, `companyId`, `tenantId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `ProductDeletionEvent` (
+    `id` VARCHAR(191) NOT NULL,
+    `productId` VARCHAR(191) NOT NULL,
+    `deletionDate` DATETIME(3) NOT NULL,
+    `quantity` INTEGER NOT NULL,
+
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -144,6 +152,88 @@ CREATE TABLE `Supplier` (
     INDEX `Supplier_id_idx`(`id`),
     INDEX `Supplier_name_idx`(`name`),
     UNIQUE INDEX `Supplier_name_contact_key`(`name`, `contact`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Transaction` (
+    `id` VARCHAR(191) NOT NULL,
+    `tenantId` VARCHAR(191) NOT NULL,
+    `type` ENUM('SALE', 'BULK_SALE', 'SWAP', 'BUYBACK') NOT NULL,
+    `date` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `createdById` VARCHAR(191) NOT NULL,
+    `companyId` VARCHAR(191) NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `customerId` VARCHAR(191) NULL,
+
+    INDEX `Transaction_companyId_idx`(`companyId`),
+    INDEX `Transaction_type_idx`(`type`),
+    INDEX `Transaction_date_idx`(`date`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `TransactionItem` (
+    `id` VARCHAR(191) NOT NULL,
+    `transactionId` VARCHAR(191) NOT NULL,
+    `productId` VARCHAR(191) NOT NULL,
+    `quantity` INTEGER NOT NULL DEFAULT 1,
+    `direction` ENUM('DEBIT', 'CREDIT') NOT NULL DEFAULT 'DEBIT',
+    `pricePerUnit` DECIMAL(12, 2) NOT NULL,
+    `totalPrice` DECIMAL(12, 2) NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    INDEX `TransactionItem_transactionId_idx`(`transactionId`),
+    INDEX `TransactionItem_productId_idx`(`productId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Customer` (
+    `id` VARCHAR(191) NOT NULL,
+    `tenantId` VARCHAR(191) NOT NULL,
+    `companyId` VARCHAR(191) NOT NULL,
+    `name` VARCHAR(191) NOT NULL,
+    `email` VARCHAR(191) NULL,
+    `phone` VARCHAR(191) NOT NULL,
+    `address` VARCHAR(191) NULL,
+    `customerType` ENUM('CUSTOMER', 'DEBTOR') NOT NULL DEFAULT 'CUSTOMER',
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    INDEX `Customer_name_idx`(`name`),
+    INDEX `Customer_companyId_idx`(`companyId`),
+    INDEX `Customer_tenantId_idx`(`tenantId`),
+    UNIQUE INDEX `Customer_name_phone_key`(`name`, `phone`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `PaymentPlan` (
+    `id` VARCHAR(191) NOT NULL,
+    `installmentCount` INTEGER NOT NULL,
+    `frequency` ENUM('WEEKLY', 'BI_WEEKLY', 'MONTHLY', 'QUARTERLY', 'CUSTOM', 'ONE_TIME') NOT NULL,
+    `startDate` DATETIME(3) NOT NULL,
+    `endDate` DATETIME(3) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `customerId` VARCHAR(191) NULL,
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Payment` (
+    `id` VARCHAR(191) NOT NULL,
+    `totalAmount` DECIMAL(12, 2) NOT NULL,
+    `balanceOwed` DECIMAL(12, 2) NULL DEFAULT 0,
+    `paymentDate` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `method` ENUM('CASH', 'BANK_TRANSFER') NOT NULL,
+    `paymentPlanId` VARCHAR(191) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    INDEX `Payment_paymentDate_idx`(`paymentDate`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -179,6 +269,33 @@ ALTER TABLE `Product` ADD CONSTRAINT `Product_companyId_fkey` FOREIGN KEY (`comp
 
 -- AddForeignKey
 ALTER TABLE `Product` ADD CONSTRAINT `Product_supplierId_fkey` FOREIGN KEY (`supplierId`) REFERENCES `Supplier`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ProductDeletionEvent` ADD CONSTRAINT `ProductDeletionEvent_productId_fkey` FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Transaction` ADD CONSTRAINT `Transaction_createdById_fkey` FOREIGN KEY (`createdById`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Transaction` ADD CONSTRAINT `Transaction_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Transaction` ADD CONSTRAINT `Transaction_customerId_fkey` FOREIGN KEY (`customerId`) REFERENCES `Customer`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `TransactionItem` ADD CONSTRAINT `TransactionItem_transactionId_fkey` FOREIGN KEY (`transactionId`) REFERENCES `Transaction`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `TransactionItem` ADD CONSTRAINT `TransactionItem_productId_fkey` FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Customer` ADD CONSTRAINT `Customer_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `PaymentPlan` ADD CONSTRAINT `PaymentPlan_customerId_fkey` FOREIGN KEY (`customerId`) REFERENCES `Customer`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Payment` ADD CONSTRAINT `Payment_paymentPlanId_fkey` FOREIGN KEY (`paymentPlanId`) REFERENCES `PaymentPlan`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `AuditLog` ADD CONSTRAINT `AuditLog_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
