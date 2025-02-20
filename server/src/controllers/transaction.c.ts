@@ -120,10 +120,13 @@ const handleIncomingProduct = async (
 		});
 	}
 
-	const supplier = await getOrCreateSupplier(tx, {
-		name: item.supplierName || "Swap Supplier",
-		contact: item.supplierPhone || "000-0000000",
-	});
+	let supplier;
+	if (item.supplierName || item.supplierPhone) {
+		supplier = await getOrCreateSupplier(tx, {
+			name: item.supplierName || "Swap Supplier",
+			contact: item.supplierPhone || "000-0000000",
+		});
+	}
 
 	return tx.product.create({
 		data: {
@@ -133,7 +136,7 @@ const handleIncomingProduct = async (
 			quantity: item.quantity,
 			companyId: company.id,
 			tenantId: company.tenantId,
-			supplierId: supplier.id,
+			supplierId: supplier ? supplier.id : null,
 			createdById: userId,
 			condition: item.condition || Condition.NEW,
 			brand: item.brand,
@@ -231,11 +234,14 @@ export const TransactionsCtrl = {
 				-transactionBody.quantity
 			);
 
-			const customer = await customerUtils.upsertCustomer(
-				tx,
-				customerDetails,
-				company
-			);
+			let customer;
+			if (customerDetails) {
+				customer = await customerUtils.upsertCustomer(
+					tx,
+					customerDetails,
+					company
+				);
+			}
 
 			const transaction = await transactionUtils.createTransaction(
 				tx,
@@ -243,7 +249,7 @@ export const TransactionsCtrl = {
 				{
 					company,
 					userId: authUser.id,
-					customerId: customer.id,
+					customerId: customer && customer.id,
 					items: [
 						{
 							productId: updatedProduct.id,
@@ -256,7 +262,7 @@ export const TransactionsCtrl = {
 			);
 
 			const paymentPlan = await paymentUtils.createPaymentPlan(tx, {
-				customerId: customer.id,
+				customerId: customer && customer.id,
 				...payment,
 				balanceOwed: payment.balanceOwed,
 				frequency: payment.frequency,
@@ -293,11 +299,14 @@ export const TransactionsCtrl = {
 				)
 			);
 
-			const customer = await customerUtils.upsertCustomer(
-				tx,
-				body.customerDetails,
-				company
-			);
+			let customer;
+			if (body.customerDetails) {
+				customer = await customerUtils.upsertCustomer(
+					tx,
+					body.customerDetails,
+					company
+				);
+			}
 
 			const transaction = await transactionUtils.createTransaction(
 				tx,
@@ -305,7 +314,7 @@ export const TransactionsCtrl = {
 				{
 					company,
 					userId: authUser.id,
-					customerId: customer.id,
+					customerId: customer && customer.id,
 					items: body.transactions.map((txn: ProductOperation) => ({
 						productId: products.find(p => p.sku === txn.sku)!.id,
 						quantity: txn.quantity,
@@ -316,7 +325,7 @@ export const TransactionsCtrl = {
 			);
 
 			const paymentPlan = await paymentUtils.createPaymentPlan(tx, {
-				customerId: customer.id,
+				customerId: customer && customer.id,
 				...body.payment,
 				balanceOwed: body.payment.balanceOwed,
 				frequency: body.payment.frequency,
@@ -359,17 +368,19 @@ export const TransactionsCtrl = {
 			);
 
 			// 3. Handle customer
-			const customer = await customerUtils.upsertCustomer(
-				tx,
-				customerDetails,
-				company
-			);
-
+			let customer;
+			if (customerDetails) {
+				customer = await customerUtils.upsertCustomer(
+					tx,
+					customerDetails,
+					company
+				);
+			}
 			// 4. Create transaction
 			const transaction = await transactionUtils.createSwapTransaction(tx, {
 				company,
 				userId: authUser.id,
-				customerId: customer.id,
+				customerId: customer && customer.id,
 				outgoingProduct,
 				outgoingQuantity: outgoing.quantity,
 				incomingProducts,
@@ -377,7 +388,7 @@ export const TransactionsCtrl = {
 
 			// 5. Handle payment if applicable
 			const paymentPlan = await paymentUtils.createPaymentPlan(tx, {
-				customerId: customer.id,
+				customerId: customer && customer.id,
 				...payment,
 			});
 

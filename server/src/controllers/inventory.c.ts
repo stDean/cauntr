@@ -1,4 +1,4 @@
-import { Condition, Product } from "@prisma/client";
+import { Condition, Product, Supplier } from "@prisma/client";
 import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
 import { BadRequestError, NotFoundError } from "../errors";
@@ -50,10 +50,13 @@ export const InventoryCtrl = {
 		}
 
 		// Retrieve or create the supplier using the supplier's name and phone number.
-		const supplier = await supplierService.getOrCreate(
-			productInput.supplierName,
-			productInput.supplierPhone
-		);
+		let supplier;
+		if (productInput.supplierName || productInput.supplierPhone) {
+			supplier = await supplierService.getOrCreate(
+				productInput.supplierName,
+				productInput.supplierPhone
+			);
+		}
 
 		if (productInput.serialNo) {
 			const existingProduct = await productService.findProductBySerial(
@@ -101,12 +104,21 @@ export const InventoryCtrl = {
 		// Retrieve the current user and company information.
 		const { user, company } = await userNdCompany(req.user);
 
-		const suppliers = await supplierService.bulkGetOrCreate(
-			req.body.map(p => ({
-				name: p["Supplier Name"],
-				phone: p["Supplier Phone Number"],
-			}))
+		// Filter products that include BOTH supplier details.
+		const productsWithSupplier = req.body.filter(
+			p => p["Supplier Name"] && p["Supplier Phone Number"]
 		);
+
+		// If any products include supplier details, perform a bulk getOrCreate.
+		const suppliers =
+			productsWithSupplier.length > 0
+				? await supplierService.bulkGetOrCreate(
+						productsWithSupplier.map(p => ({
+							name: p["Supplier Name"],
+							phone: p["Supplier Phone Number"],
+						}))
+				  )
+				: [];
 
 		const results: any = [];
 		const errors: any = [];
@@ -120,7 +132,7 @@ export const InventoryCtrl = {
 							s.contact === product["Supplier Phone Number"]
 					);
 
-					if (!supplier) throw new BadRequestError("Supplier not found");
+					// if (!supplier) throw new BadRequestError("Supplier not found");
 
 					const dataInput: any = {
 						tenantId: company.tenantId,
@@ -138,7 +150,7 @@ export const InventoryCtrl = {
 							: Condition.NEW,
 						quantity: Number(product["Quantity"]) || 1,
 						createdById: user.id,
-						supplierId: supplier.id,
+						supplierId: supplier && supplier.id,
 						companyId: company.id,
 					};
 

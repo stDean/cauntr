@@ -21,7 +21,7 @@ export const productService = {
 		input: ProductInput,
 		user: { id: string },
 		company: { id: string; tenantId: string },
-		supplier: Supplier
+		supplier?: Supplier
 	) => ({
 		tenantId: company.tenantId,
 		sku: input.sku || generateSKU(input.productType)!,
@@ -40,7 +40,7 @@ export const productService = {
 			: Condition.NEW,
 		quantity: Number(input.quantity || 1),
 		createdById: user.id,
-		supplierId: supplier.id,
+		supplierId: supplier ? supplier.id : null,
 		companyId: company.id,
 	}),
 };

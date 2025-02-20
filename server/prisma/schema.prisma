@@ -201,8 +201,8 @@ model Product {
   createdById          String
   Company              Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
   companyId            String
-  Supplier             Supplier               @relation(fields: [supplierId], references: [id], onDelete: Cascade)
-  supplierId           String
+  Supplier             Supplier?               @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  supplierId           String?
   ProductDeletionEvent ProductDeletionEvent[]
   TransactionItem      TransactionItem[]
 
@@ -245,8 +245,8 @@ model Transaction {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
   TransactionItem TransactionItem[]
-  Customer        Customer          @relation(fields: [customerId], references: [id])
-  customerId      String
+  Customer        Customer?          @relation(fields: [customerId], references: [id])
+  customerId      String?
 
   @@index([companyId])
   @@index([type])

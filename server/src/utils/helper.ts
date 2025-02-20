@@ -95,18 +95,21 @@ export const handleBuybackProduct = async ({
 	productInput: ProductInput;
 	user: { id: string };
 	company: { id: string; tenantId: string };
-	supplier: Supplier;
+	supplier?: Supplier;
 }) => {
-	const customer = await prisma.customer.upsert({
-		where: { name_phone: { name: supplier.name, phone: supplier.contact } },
-		create: {
-			name: supplier.name,
-			phone: supplier.contact,
-			companyId: company.id,
-			tenantId: company.tenantId,
-		},
-		update: { name: supplier.name, phone: supplier.contact },
-	});
+	let customer;
+	if (supplier) {
+		customer = await prisma.customer.upsert({
+			where: { name_phone: { name: supplier.name, phone: supplier.contact } },
+			create: {
+				name: supplier.name,
+				phone: supplier.contact,
+				companyId: company.id,
+				tenantId: company.tenantId,
+			},
+			update: { name: supplier.name, phone: supplier.contact },
+		});
+	}
 
 	const quantity = Number(productInput.quantity || 1);
 	const updateData =
@@ -116,7 +119,7 @@ export const handleBuybackProduct = async ({
 
 	const updatedProduct = await prisma.product.update({
 		where: { id: existingProduct.id },
-		data: { ...updateData, supplierId: supplier.id },
+		data: { ...updateData, supplierId: supplier ? supplier.id : null },
 	});
 
 	const transaction = await transactionUtils.createTransaction(
@@ -125,7 +128,7 @@ export const handleBuybackProduct = async ({
 		{
 			company: { id: company.id, tenantId: company.tenantId },
 			userId: user.id,
-			customerId: customer.id,
+			customerId: customer && customer.id,
 			items: [
 				{
 					productId: updatedProduct.id,

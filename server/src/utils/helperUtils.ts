@@ -90,8 +90,6 @@ export const productUtils = {
 			"productType",
 			"sellingPrice",
 			"brand",
-			"supplierName",
-			"supplierPhone",
 		];
 
 		requiredFields.forEach(field => {
@@ -127,7 +125,7 @@ export const transactionUtils = {
 		config: {
 			company: { id: string; tenantId: string };
 			userId: string;
-			customerId: string;
+			customerId?: string;
 			items: Array<{
 				productId: string;
 				quantity: number;
@@ -142,7 +140,7 @@ export const transactionUtils = {
 				companyId: config.company.id,
 				tenantId: config.company.tenantId,
 				createdById: config.userId,
-				customerId: config.customerId,
+				customerId: config.customerId || null,
 				TransactionItem: {
 					create: config.items.map(item => ({
 						...item,
@@ -158,7 +156,7 @@ export const transactionUtils = {
 		config: {
 			company: { id: string; tenantId: string };
 			userId: string;
-			customerId: string;
+			customerId?: string;
 			outgoingProduct: any;
 			outgoingQuantity: number;
 			incomingProducts: any;
@@ -170,7 +168,7 @@ export const transactionUtils = {
 				companyId: config.company.id,
 				tenantId: config.company.tenantId,
 				createdById: config.userId,
-				customerId: config.customerId,
+				customerId: config.customerId || null,
 				TransactionItem: {
 					create: [
 						// Outgoing item
@@ -203,7 +201,7 @@ export const paymentUtils = {
 	createPaymentPlan: async (
 		tx: Prisma.TransactionClient,
 		config: {
-			customerId: string;
+			customerId?: string;
 			amountPaid?: number;
 			paymentMethod?: string;
 			balanceOwed?: number;
@@ -217,7 +215,7 @@ export const paymentUtils = {
 				frequency:
 					(config.frequency?.toUpperCase() as InstallmentFrequency) ||
 					InstallmentFrequency.ONE_TIME,
-				customerId: config.customerId,
+				customerId: config.customerId || null,
 				customerType: config.balanceOwed
 					? CustomerType.DEBTOR
 					: CustomerType.CUSTOMER,
