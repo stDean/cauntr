@@ -23,11 +23,15 @@ router
 	.post(AuthMiddleware, TransactionsCtrl.swapProduct);
 
 router
-	.route("/product/:sku/sold")
-	.get(AuthMiddleware, TransactionsCtrl.getSoldProductBySKU);
+	.route("/products/:transactionId/sold")
+	.get(AuthMiddleware, TransactionsCtrl.getSoldTransactionByID);
 router
-	.route("/product/:sku/swap")
-	.get(AuthMiddleware, TransactionsCtrl.getSwaProductBySKU);
+	.route("/products/:transactionId/swap")
+	.get(AuthMiddleware, TransactionsCtrl.getSwapTransactionByID);
+
+router
+	.route("/products/:itemId/item")
+	.get(AuthMiddleware, TransactionsCtrl.getProductByItemID);
 
 router
 	.route("/products/updatePrice")

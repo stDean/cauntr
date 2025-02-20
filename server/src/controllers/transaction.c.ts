@@ -171,6 +171,41 @@ const getSoldOrSwapProducts = async ({
 	return { transactions };
 };
 
+const soldOrSwapByID = async ({
+	company,
+	inArray,
+	id,
+}: {
+	company: Company;
+	inArray: TransactionType[];
+	id: string;
+}) => {
+	const transaction = await prisma.transaction.findUnique({
+		where: {
+			id: id,
+			companyId: company.id,
+			tenantId: company.tenantId,
+			type: { in: inArray },
+		},
+		include: {
+			TransactionItem: {
+				include: {
+					Product: {
+						include: {
+							Supplier: true,
+						},
+					},
+				},
+			},
+			Customer: true,
+		},
+	});
+
+	if (!transaction) throw new NotFoundError("Transaction not found.");
+
+	return { transaction };
+};
+
 export const TransactionsCtrl = {
 	sellProduct: async (req: Request, res: Response) => {
 		const { user, params, body } = req;
@@ -385,22 +420,57 @@ export const TransactionsCtrl = {
 			nbHits: transactions.length,
 		});
 	},
+	getSoldTransactionByID: async (req: Request, res: Response) => {
+		const { company } = await userNdCompany(req.user);
+
+		const { transaction } = await soldOrSwapByID({
+			company,
+			inArray: ["SALE", "BULK_SALE"],
+			id: req.params.transactionId,
+		});
+
+		res.status(StatusCodes.OK).json({
+			success: true,
+			msg: "Sold transaction found.",
+			data: transaction,
+		});
+	},
+	getSwapTransactionByID: async (req: Request, res: Response) => {
+		const { company } = await userNdCompany(req.user);
+
+		const { transaction } = await soldOrSwapByID({
+			company,
+			inArray: ["SWAP"],
+			id: req.params.transactionId,
+		});
+
+		res.status(StatusCodes.OK).json({
+			success: true,
+			msg: "Swap transaction found.",
+			data: transaction,
+		});
+	},
+	getProductByItemID: async (req: Request, res: Response) => {
+		const product = await prisma.transactionItem.findUnique({
+			where: { id: req.params.itemId },
+			include: {
+				Product: { include: { Supplier: true } },
+				Transaction: { include: { Customer: true } },
+			},
+		});
+
+		if (!product) throw new NotFoundError("Product not found.");
+
+		res.status(StatusCodes.OK).json({
+			success: true,
+			msg: "Sold product found.",
+			data: product,
+		});
+	},
 	updateProductBalance: async (req: Request, res: Response) => {
 		res.status(StatusCodes.OK).json({
 			success: true,
 			msg: "Product balance successfully updated",
-		});
-	},
-	getSoldProductBySKU: async (req: Request, res: Response) => {
-		res.status(StatusCodes.OK).json({
-			success: true,
-			msg: "Sold product found.",
-		});
-	},
-	getSwaProductBySKU: async (req: Request, res: Response) => {
-		res.status(StatusCodes.OK).json({
-			success: true,
-			msg: "Swap product found.",
 		});
 	},
 	updateSoldPrice: async (req: Request, res: Response) => {
