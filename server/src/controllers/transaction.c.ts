@@ -1,4 +1,11 @@
-import { Condition, Direction, Prisma, TransactionType } from "@prisma/client";
+import {
+	Condition,
+	CustomerType,
+	Direction,
+	PaymentMethod,
+	Prisma,
+	TransactionType,
+} from "@prisma/client";
 import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
 import { BadRequestError, NotFoundError } from "../errors";
@@ -53,7 +60,6 @@ interface SellProductRequest {
 	};
 	payment: {
 		paymentMethod: string;
-		amountPaid: number;
 		balanceOwed: number;
 		frequency: string;
 	};
@@ -210,6 +216,22 @@ const soldOrSwapByID = async ({
 };
 
 export const TransactionsCtrl = {
+	/**
+	 * Sell a single product.
+	 *
+	 * Steps:
+	 * - Extract user information, URL parameters (such as the product SKU), and request body data
+	 *   (transaction details, payment info, and optional customer details).
+	 * - Retrieve the company context and authenticated user using a helper function.
+	 * - Start a database transaction to ensure all subsequent operations are executed atomically.
+	 * - Locate the product by its SKU and validate that there is sufficient stock available.
+	 * - Update the product’s quantity by deducting the sold amount.
+	 * - If customer details are provided, perform an upsert to update or create the customer record.
+	 * - Create a sale transaction record that includes details of the sold product.
+	 * - Create a payment plan by calculating the total paid amount (price multiplied by quantity)
+	 *   and setting other payment details.
+	 * - Return a JSON response containing the transaction, customer (if any), and payment plan details.
+	 */
 	sellProduct: async (req: Request, res: Response) => {
 		const { user, params, body } = req;
 		const {
@@ -264,8 +286,11 @@ export const TransactionsCtrl = {
 			const paymentPlan = await paymentUtils.createPaymentPlan(tx, {
 				customerId: customer && customer.id,
 				...payment,
+				amountPaid:
+					Number(transactionBody.price) * Number(transactionBody.quantity),
 				balanceOwed: payment.balanceOwed,
 				frequency: payment.frequency,
+				transId: transaction.id,
 			});
 
 			res.status(StatusCodes.OK).json({
@@ -274,6 +299,25 @@ export const TransactionsCtrl = {
 			});
 		});
 	},
+
+	/**
+	 * Sell multiple products in a bulk sale.
+	 *
+	 * Steps:
+	 * - Extract the user information and transactions list from the request body.
+	 * - Retrieve the company context and authenticated user details.
+	 * - Validate that the "transactions" field is present in the request body.
+	 * - Initiate a database transaction to ensure atomicity.
+	 * - For each transaction in the list:
+	 *    - Concurrently fetch the corresponding product by SKU.
+	 *    - Validate that each product has enough stock to cover the sale.
+	 * - Update the quantity of each product based on the sold amounts.
+	 * - If customer details are provided, upsert the customer record.
+	 * - Create a bulk sale transaction record that aggregates all sold products.
+	 * - Calculate the total amount paid by summing up the individual transaction totals.
+	 * - Create a payment plan for the bulk sale with the calculated payment details.
+	 * - Return a JSON response with the bulk sale transaction, customer details, and payment plan.
+	 */
 	sellProducts: async (req: Request, res: Response) => {
 		const { user, body } = req;
 		const { company, user: authUser } = await userNdCompany(user);
@@ -324,11 +368,17 @@ export const TransactionsCtrl = {
 				}
 			);
 
+			const amountPaid = body.transactions.reduce((acc: number, txn: any) => {
+				return acc + txn.sellingPrice * txn.quantity;
+			}, 0);
+
 			const paymentPlan = await paymentUtils.createPaymentPlan(tx, {
 				customerId: customer && customer.id,
 				...body.payment,
+				amountPaid: amountPaid,
 				balanceOwed: body.payment.balanceOwed,
 				frequency: body.payment.frequency,
+				transId: transaction.id,
 			});
 
 			res.status(StatusCodes.OK).json({
@@ -337,6 +387,25 @@ export const TransactionsCtrl = {
 			});
 		});
 	},
+
+	/**
+	 * Swap a product.
+	 *
+	 * Steps:
+	 * - Extract the user information, URL parameters, and request body data including:
+	 *    - Outgoing product details (SKU and quantity to be swapped out).
+	 *    - An array of incoming product details.
+	 *    - Optional customer details and payment info.
+	 * - Validate that the outgoing product and at least one incoming product are specified.
+	 * - Retrieve the company context and authenticated user.
+	 * - Begin a database transaction.
+	 * - Process the outgoing product by reducing its stock quantity accordingly.
+	 * - Process each incoming product concurrently, which may involve adding new stock or updating records.
+	 * - If provided, upsert the customer record using the provided customer details.
+	 * - Create a swap transaction record that captures details for both the outgoing and incoming products.
+	 * - If payment details are provided, create a corresponding payment plan.
+	 * - Return a JSON response confirming the successful swap, along with transaction, payment, and customer details.
+	 */
 	swapProduct: async (req: Request, res: Response) => {
 		const { user, body, params } = req;
 		const { outgoing, incoming, customerDetails, payment } =
@@ -389,6 +458,7 @@ export const TransactionsCtrl = {
 			// 5. Handle payment if applicable
 			const paymentPlan = await paymentUtils.createPaymentPlan(tx, {
 				customerId: customer && customer.id,
+				transId: transaction.id,
 				...payment,
 			});
 
@@ -399,6 +469,16 @@ export const TransactionsCtrl = {
 			});
 		});
 	},
+
+	/**
+	 * Retrieve sold products.
+	 *
+	 * Steps:
+	 * - Extract the user's email and company ID from the request.
+	 * - Retrieve the company context based on the user's credentials.
+	 * - Fetch all transactions classified as "SALE" or "BULK_SALE" using a helper function.
+	 * - Return a JSON response containing the list of sold transactions and the count of transactions.
+	 */
 	getSoldProducts: async (req: Request, res: Response) => {
 		const { email, companyId } = req.user;
 		const { company } = await userNdCompany({ email, companyId });
@@ -415,6 +495,16 @@ export const TransactionsCtrl = {
 			nbHits: transactions.length,
 		});
 	},
+
+	/**
+	 * Retrieve swap transactions.
+	 *
+	 * Steps:
+	 * - Extract the user's email and company ID from the request.
+	 * - Retrieve the company context using the user details.
+	 * - Fetch all transactions classified as "SWAP" using a helper function.
+	 * - Return a JSON response containing the list of swap transactions and the total number of hits.
+	 */
 	getSwapProducts: async (req: Request, res: Response) => {
 		const { email, companyId } = req.user;
 		const { company } = await userNdCompany({ email, companyId });
@@ -431,6 +521,16 @@ export const TransactionsCtrl = {
 			nbHits: transactions.length,
 		});
 	},
+
+	/**
+	 * Retrieve a sold transaction by its ID.
+	 *
+	 * Steps:
+	 * - Retrieve the company context from the authenticated user's data.
+	 * - Use a helper function to fetch the transaction by its ID, filtering for transactions of type
+	 *   "SALE" or "BULK_SALE".
+	 * - Return a JSON response containing the details of the found sold transaction.
+	 */
 	getSoldTransactionByID: async (req: Request, res: Response) => {
 		const { company } = await userNdCompany(req.user);
 
@@ -446,6 +546,15 @@ export const TransactionsCtrl = {
 			data: transaction,
 		});
 	},
+
+	/**
+	 * Retrieve a swap transaction by its ID.
+	 *
+	 * Steps:
+	 * - Retrieve the company context from the user's information.
+	 * - Use a helper function to fetch the transaction by its ID, ensuring it is of type "SWAP".
+	 * - Return a JSON response containing the details of the found swap transaction.
+	 */
 	getSwapTransactionByID: async (req: Request, res: Response) => {
 		const { company } = await userNdCompany(req.user);
 
@@ -461,7 +570,21 @@ export const TransactionsCtrl = {
 			data: transaction,
 		});
 	},
+
+	/**
+	 * Retrieve a product by its transaction item ID.
+	 *
+	 * Steps:
+	 * - Retrieve the company context using the authenticated user's data.
+	 * - Find the transaction item by its ID using Prisma, including related product details
+	 *   (and supplier) and transaction details (and customer).
+	 * - If the transaction item is not found, throw a "Not Found" error.
+	 * - Return a JSON response with the details of the retrieved product.
+	 */
 	getProductByItemID: async (req: Request, res: Response) => {
+		const { company } = await userNdCompany(req.user);
+		if (!company) throw new BadRequestError("Company not found.");
+
 		const product = await prisma.transactionItem.findUnique({
 			where: { id: req.params.itemId },
 			include: {
@@ -478,16 +601,153 @@ export const TransactionsCtrl = {
 			data: product,
 		});
 	},
+
+	/**
+	 * Update the payment balance for a sold product.
+	 *
+	 * Steps:
+	 * - Extract the payment amount and method from the request body.
+	 * - Retrieve the company context from the authenticated user.
+	 * - Fetch the transaction item along with its associated payment details.
+	 * - Validate that there is an outstanding balance and that the payment does not exceed this balance.
+	 * - Update the payment plan:
+	 *    - Increment the installment count.
+	 *    - Create a new payment record with the updated total amount and remaining balance.
+	 * - Return a JSON response containing the updated transaction item and payment plan details.
+	 */
 	updateProductBalance: async (req: Request, res: Response) => {
+		const { amount, method } = req.body;
+		const { company } = await userNdCompany(req.user);
+		if (!company) throw new BadRequestError("Company not found.");
+
+		const product = await prisma.transactionItem.findUnique({
+			where: { id: req.params.itemId },
+			include: {
+				Transaction: {
+					select: {
+						Payments: {
+							select: {
+								payments: { orderBy: { paymentDate: "desc" } },
+								installmentCount: true,
+							},
+						},
+						customerId: true,
+					},
+				},
+			},
+		});
+
+		if (!product) throw new NotFoundError("Product not found.");
+
+		const isBalance =
+			product?.Transaction?.Payments?.[0]?.payments?.[0]?.balanceOwed;
+
+		if (Number(isBalance) === 0) {
+			throw new BadRequestError("Balance is 0 and cannot be updated.");
+		}
+
+		const balance = Number(isBalance) - Number(amount);
+
+		// Prevent overpayment
+		if (balance < 0) {
+			throw new BadRequestError("Cannot pay more than balance owed");
+		}
+
+		const plan = await prisma.paymentPlan.update({
+			where: {
+				id: product?.Transaction?.Payments?.[0]?.payments?.[0]?.paymentPlanId!,
+			},
+			data: {
+				customerType:
+					balance !== 0 ? CustomerType.DEBTOR : CustomerType.CUSTOMER,
+				installmentCount:
+					product?.Transaction?.Payments?.[0]?.installmentCount! + 1,
+				payments: {
+					create: {
+						method: method
+							? method.toUpperCase()
+							: (product?.Transaction?.Payments?.[0]?.payments?.[0]
+									?.method as PaymentMethod),
+						totalAmount:
+							Number(amount) +
+							Number(
+								product?.Transaction?.Payments?.[0]?.payments?.[0]?.totalAmount
+							),
+						balanceOwed: balance,
+					},
+				},
+			},
+		});
+
 		res.status(StatusCodes.OK).json({
 			success: true,
 			msg: "Product balance successfully updated",
+			data: { product, plan },
 		});
 	},
+
+	/**
+	 * Update the selling price of a sold product.
+	 *
+	 * Steps:
+	 * - Retrieve the company context from the authenticated user.
+	 * - Fetch the transaction item along with its latest payment details.
+	 * - Validate that there is no outstanding balance (i.e., balance owed must be zero)
+	 *   to allow a price update.
+	 * - Calculate the difference between the new price and the current total price.
+	 * - Update the transaction item with the new price per unit and the new total price.
+	 * - Adjust the latest payment record to reflect the updated total amount.
+	 * - Return a JSON response indicating that the product price has been successfully updated.
+	 */
 	updateSoldPrice: async (req: Request, res: Response) => {
+		const { company } = await userNdCompany(req.user);
+		if (!company) throw new BadRequestError("Company not found.");
+
+		const product = await prisma.transactionItem.findUnique({
+			where: { id: req.params.itemId },
+			include: {
+				Transaction: {
+					select: {
+						Payments: {
+							select: { payments: { orderBy: { paymentDate: "desc" } } },
+						},
+						type: true,
+					},
+				},
+			},
+		});
+
+		if (!product) throw new NotFoundError("Product not found.");
+
+		const isBalance =
+			product?.Transaction?.Payments?.[0]?.payments?.[0]?.balanceOwed;
+		if (Number(isBalance) !== 0) {
+			throw new BadRequestError(
+				"Selling price cannot be updated, payment is outstanding."
+			);
+		}
+
+		const latestPayment = product?.Transaction?.Payments?.[0]?.payments?.[0];
+		const difference =
+			Number(latestPayment?.totalAmount) - Number(product?.totalPrice);
+
+		const plan = await prisma.transactionItem.update({
+			where: { id: product!.id, transactionId: product!.transactionId },
+			data: {
+				pricePerUnit: Number(req.body.price) / Number(product?.quantity),
+				totalPrice: Number(req.body.price),
+			},
+		});
+
+		await prisma.payment.update({
+			where: { id: latestPayment?.id },
+			data: { totalAmount: Number(req.body.price) + difference },
+		});
+
 		res.status(StatusCodes.OK).json({
 			success: true,
 			msg: "Product price successfully updated",
+			data: plan,
 		});
 	},
 };

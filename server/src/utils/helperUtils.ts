@@ -207,11 +207,13 @@ export const paymentUtils = {
 			balanceOwed?: number;
 			frequency?: string;
 			installmentCount?: number;
+			transId?: string;
 		}
 	) => {
 		return tx.paymentPlan.create({
 			data: {
 				installmentCount: config.installmentCount || 1,
+				transactionId: config.transId,
 				frequency:
 					(config.frequency?.toUpperCase() as InstallmentFrequency) ||
 					InstallmentFrequency.ONE_TIME,

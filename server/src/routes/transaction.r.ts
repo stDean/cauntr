@@ -34,10 +34,14 @@ router
 	.get(AuthMiddleware, TransactionsCtrl.getProductByItemID);
 
 router
-	.route("/products/updatePrice")
+	.route("/products/:itemId/updatePrice")
 	.patch(
-		[AdminMiddleware, AuthMiddleware],
+		[AuthMiddleware, AdminMiddleware],
 		TransactionsCtrl.updateProductBalance
 	);
+
+router
+	.route("/products/:itemId/updateSoldPrice")
+	.patch([AuthMiddleware, AdminMiddleware], TransactionsCtrl.updateSoldPrice);
 
 export default router;
