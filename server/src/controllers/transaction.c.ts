@@ -52,7 +52,7 @@ interface Company {
 
 interface SellProductRequest {
 	transaction: { quantity: number; price: number; sku?: string };
-	customerDetails: {
+	customerDetails?: {
 		name: string;
 		phone: string;
 		email: string;
@@ -66,7 +66,7 @@ interface SellProductRequest {
 }
 
 // Helper functions
-const handleOutgoingProduct = async (
+export const handleOutgoingProduct = async (
 	tx: Prisma.TransactionClient,
 	company: Company,
 	sku: string,
@@ -92,7 +92,7 @@ const handleOutgoingProduct = async (
 	});
 };
 
-const getOrCreateSupplier = async (
+export const getOrCreateSupplier = async (
 	tx: Prisma.TransactionClient,
 	details: { name: string; contact: string }
 ) => {
@@ -103,7 +103,7 @@ const getOrCreateSupplier = async (
 	});
 };
 
-const handleIncomingProduct = async (
+export const handleIncomingProduct = async (
 	tx: Prisma.TransactionClient,
 	company: Company,
 	userId: string,
@@ -154,7 +154,7 @@ const handleIncomingProduct = async (
 	});
 };
 
-const getSoldOrSwapProducts = async ({
+export const getSoldOrSwapProducts = async ({
 	company,
 	inArray,
 }: {
@@ -180,7 +180,7 @@ const getSoldOrSwapProducts = async ({
 	return { transactions };
 };
 
-const soldOrSwapByID = async ({
+export const soldOrSwapByID = async ({
 	company,
 	inArray,
 	id,
@@ -239,6 +239,8 @@ export const TransactionsCtrl = {
 			payment,
 			customerDetails,
 		} = body as SellProductRequest;
+		// Add validation for required fields
+		validationUtils.validateRequiredFields(body, ["transaction"]);
 
 		const { company, user: authUser } = await userNdCompany(user);
 
@@ -445,6 +447,7 @@ export const TransactionsCtrl = {
 					company
 				);
 			}
+
 			// 4. Create transaction
 			const transaction = await transactionUtils.createSwapTransaction(tx, {
 				company,

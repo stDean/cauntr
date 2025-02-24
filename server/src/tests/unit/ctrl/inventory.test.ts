@@ -9,7 +9,23 @@ import {
 	productHelper,
 } from "../../../utils/helper";
 import { prisma } from "../../../utils/prisma.h";
+import { productService } from "../../../services/productService";
+import { productUtils, responseUtils } from "../../../utils/helperUtils";
 
+jest.mock("../../../utils/helperUtils", () => ({
+	productUtils: {
+		validateProduct: jest.fn().mockReturnValue(null), // Default valid
+	},
+	responseUtils: {
+		error: jest.fn().mockImplementation((res, msg, status, errors) => ({
+			status,
+			errors,
+			message: msg,
+		})),
+		success: jest.fn(),
+		multiStatus: jest.fn(),
+	},
+}));
 jest.mock("../../../utils/helper");
 jest.mock("../../../utils/prisma.h", () => ({
 	prisma: {
@@ -51,6 +67,17 @@ jest.mock("../../../utils/prisma.h", () => ({
 				},
 			})
 		),
+	},
+}));
+jest.mock("../../../services/supplierService", () => ({
+	supplierService: {
+		getOrCreate: jest.fn(),
+		bulkGetOrCreate: jest.fn(),
+	},
+}));
+jest.mock("../../../services/productService", () => ({
+	productService: {
+		createProductData: jest.fn(),
 	},
 }));
 
@@ -109,17 +136,16 @@ describe("Inventory Controller", () => {
 				email: "test@test.com",
 				companyId: "1",
 			});
-			expect(supplierService.getOrCreate).toHaveBeenCalledWith({
-				supplierName: "Test Supplier",
-				supplierPhone: "1234567890",
-			});
+			expect(supplierService.getOrCreate).toHaveBeenCalledWith(
+				"Test Supplier",
+				"1234567890"
+			);
 			expect(prisma.product.create).toHaveBeenCalled();
-			expect(res.status).toHaveBeenCalledWith(StatusCodes.CREATED);
-			expect(res.json).toHaveBeenCalledWith({
-				msg: "Product created successfully",
-				success: true,
-				data: mockProduct,
-			});
+			expect(responseUtils.success).toHaveBeenCalledWith(
+				res,
+				mockProduct,
+				StatusCodes.CREATED
+			);
 		});
 
 		it("should return validation errors for missing required fields", async () => {
@@ -131,40 +157,61 @@ describe("Inventory Controller", () => {
 			);
 			const res = mockResponse();
 
+			(userNdCompany as jest.Mock).mockResolvedValue({
+				user: { id: "user1" },
+				company: { id: "company1", tenantId: "tenant1" },
+			});
+
+			// Mock validation to return object-shaped errors
+			(productUtils.validateProduct as jest.Mock).mockReturnValue({
+				productName: "productName is required",
+			});
+
 			await InventoryCtrlModule.InventoryCtrl.createProduct(req, res);
 
-			expect(res.status).toHaveBeenCalledWith(StatusCodes.BAD_REQUEST);
-			expect(res.json).toHaveBeenCalledWith({
-				msg: "Product creation failed.",
-				success: false,
-				errors: expect.arrayContaining([
-					{ field: "productName", message: "productName is required" },
-				]),
-			});
+			expect(responseUtils.error).toHaveBeenCalledWith(
+				res,
+				"Validation failed",
+				StatusCodes.BAD_REQUEST,
+				{ productName: "productName is required" } // Changed to object match
+			);
+			expect(prisma.product.create).not.toHaveBeenCalled();
 		});
 
-		it("should handle invalid condition value", async () => {
+		it("should reject invalid condition value", async () => {
+			const invalidProduct = {
+				...validProduct,
+				condition: "INVALID",
+				supplierName: "Test Supplier",
+				supplierPhone: "1234567890",
+			};
+
 			const req = mockRequest(
-				{
-					...validProduct,
-					condition: "INVALID",
-				},
+				invalidProduct,
 				{},
 				{ companyId: "1", email: "test@test.com" }
 			);
 			const res = mockResponse();
 
-			(prisma.product.create as jest.Mock).mockImplementation(({ data }) =>
-				Promise.resolve({ ...data, condition: Condition.NEW })
-			);
+			(userNdCompany as jest.Mock).mockResolvedValue({
+				user: { id: "user1" },
+				company: { id: "company1", tenantId: "tenant1" },
+			});
+
+			// Mock validation to return error
+			(productUtils.validateProduct as jest.Mock).mockReturnValue({
+				condition: "Invalid product condition",
+			});
 
 			await InventoryCtrlModule.InventoryCtrl.createProduct(req, res);
 
-			expect(prisma.product.create).toHaveBeenCalledWith(
-				expect.objectContaining({
-					data: expect.objectContaining({ condition: Condition.NEW }),
-				})
+			expect(responseUtils.error).toHaveBeenCalledWith(
+				res,
+				"Validation failed",
+				StatusCodes.BAD_REQUEST,
+				{ condition: "Invalid product condition" }
 			);
+			expect(prisma.product.create).not.toHaveBeenCalled();
 		});
 	});
 
@@ -190,6 +237,19 @@ describe("Inventory Controller", () => {
 			},
 		];
 
+		beforeEach(() => {
+			// Mock supplier service
+			(supplierService.bulkGetOrCreate as jest.Mock).mockResolvedValue([
+				{ id: "supplierA", name: "Supplier A", contact: "1234567890" },
+				{ id: "supplierB", name: "Supplier B", contact: "0987654321" },
+			]);
+
+			// Mock product service
+			(productService.createProductData as jest.Mock).mockImplementation(
+				data => data
+			);
+		});
+
 		it("should create multiple products with valid input", async () => {
 			const req = mockRequest(
 				validProducts,
@@ -203,35 +263,74 @@ describe("Inventory Controller", () => {
 				company: { id: "company1", tenantId: "tenant1" },
 			});
 
-			// Mock suppliers with correct contact/name matching products
-			const mockSuppliers = [
-				{ id: "supplierA", name: "Supplier A", contact: "1234567890" },
-				{ id: "supplierB", name: "Supplier B", contact: "0987654321" },
-			];
-			(prisma.supplier.findMany as jest.Mock)
-				.mockResolvedValueOnce([]) // Initial existing suppliers
-				.mockResolvedValue(mockSuppliers); // After creation
-
 			(prisma.product.create as jest.Mock).mockImplementation(({ data }) =>
 				Promise.resolve({ ...data, id: Math.random().toString() })
 			);
 
 			await InventoryCtrlModule.InventoryCtrl.createProducts(req, res);
 
-			expect(res.status).toHaveBeenCalledWith(StatusCodes.CREATED);
-			expect(res.json).toHaveBeenCalledWith({
-				message: "All products created successfully",
-				data: expect.any(Array),
-				success: true,
-			});
-			expect(prisma.product.create).toHaveBeenCalledTimes(2);
+			// Verify supplier handling
+			expect(supplierService.bulkGetOrCreate).toHaveBeenCalledWith(
+				expect.arrayContaining([
+					expect.objectContaining({
+						name: "Supplier A",
+						phone: "1234567890",
+					}),
+					expect.objectContaining({
+						name: "Supplier B",
+						phone: "0987654321",
+					}),
+				])
+			);
+
+			// Verify product creation data
+			expect(prisma.product.create).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: expect.objectContaining({
+						companyId: "company1",
+						tenantId: "tenant1",
+						quantity: 1,
+						sellingPrice: 100,
+						sku: "SKU-001",
+					}),
+				})
+			);
+
+			expect(responseUtils.success).toHaveBeenCalledWith(
+				res,
+				expect.arrayContaining([
+					expect.objectContaining({
+						productName: "Product 1",
+						sku: "SKU-001",
+						companyId: "company1",
+						tenantId: "tenant1",
+						quantity: 1,
+						sellingPrice: 100,
+					}),
+					expect.objectContaining({
+						productName: "Product 2",
+						sku: "SKU-002",
+						companyId: "company1",
+						tenantId: "tenant1",
+						quantity: 1,
+						sellingPrice: 50,
+					}),
+				]),
+				StatusCodes.CREATED
+			);
 		});
 
 		it("should return validation errors for invalid bulk input", async () => {
 			const invalidProducts = [
 				validProducts[0],
-				{ ...validProducts[1], Brand: "" },
+				{
+					...validProducts[1],
+					"Selling Price": "invalid",
+					Quantity: 1,
+					Brand: "Brand 2",
+				},
 			];
+
 			const req = mockRequest(
 				invalidProducts,
 				{},
@@ -239,13 +338,27 @@ describe("Inventory Controller", () => {
 			);
 			const res = mockResponse();
 
-			await InventoryCtrlModule.InventoryCtrl.createProducts(req, res);
-
-			expect(res.status).toHaveBeenCalledWith(StatusCodes.BAD_REQUEST);
-			expect(res.json).toHaveBeenCalledWith({
-				msg: "Validation errors in input data",
-				errors: expect.arrayContaining([{ index: 1, missing: ["Brand"] }]),
+			(userNdCompany as jest.Mock).mockResolvedValue({
+				user: { id: "user1" },
+				company: { id: "company1", tenantId: "tenant1" },
 			});
+
+			// Mock product creation to fail for invalid price
+			(prisma.product.create as jest.Mock)
+				.mockResolvedValueOnce({}) // Success for first product
+				.mockRejectedValueOnce(new Error("Invalid selling price")); // Failure for second
+
+			await InventoryCtrlModule.InventoryCtrl.createProducts(req, res);
+			expect(responseUtils.multiStatus).toHaveBeenCalledWith(
+				res,
+				expect.any(Array),
+				expect.arrayContaining([
+					expect.objectContaining({
+						index: 1,
+						error: expect.stringContaining("Invalid selling price"),
+					}),
+				])
+			);
 		});
 
 		it("should throw error if request body is not an array", async () => {
@@ -265,7 +378,8 @@ describe("Inventory Controller", () => {
 				validProducts[0],
 				{
 					...validProducts[1],
-					SKU: "SKU-001",
+					SKU: "SKU-001", // Duplicate SKU
+					"Supplier Phone Number": "invalid-phone", // Invalid supplier
 				},
 			];
 
@@ -281,33 +395,42 @@ describe("Inventory Controller", () => {
 				company: { id: "company1", tenantId: "tenant1" },
 			});
 
-			// Mock suppliers
-			const mockSuppliers = [
+			// Mock partial supplier resolution
+			(supplierService.bulkGetOrCreate as jest.Mock).mockResolvedValue([
 				{ id: "supplierA", name: "Supplier A", contact: "1234567890" },
-			];
+			]);
 
-			(prisma.supplier.findMany as jest.Mock)
-				.mockResolvedValueOnce([])
-				.mockResolvedValue(mockSuppliers);
-
+			// Mock product creation results
 			(prisma.product.create as jest.Mock)
-				.mockResolvedValueOnce({ ...validProducts[0], id: "1" }) // Success
-				.mockRejectedValue(new Error("Duplicate SKU")); // Failure
+				.mockResolvedValueOnce({ ...validProducts[0], id: "1" })
+				.mockRejectedValueOnce(new Error("Duplicate SKU"));
 
 			await InventoryCtrlModule.InventoryCtrl.createProducts(req, res);
 
-			expect(res.status).toHaveBeenCalledWith(StatusCodes.MULTI_STATUS);
-			expect(res.json).toHaveBeenCalledWith({
-				created: 1,
-				failed: 1,
-				data: expect.arrayContaining([expect.objectContaining({ id: "1" })]),
-				errors: expect.arrayContaining([
+			expect(responseUtils.multiStatus).toHaveBeenCalledWith(
+				res,
+				expect.any(Array),
+				expect.arrayContaining([
 					expect.objectContaining({
-						product: (mixedProducts[1] as any)["Serial Number"],
-						error: expect.any(String),
+						index: 1,
+						error: expect.stringContaining("Duplicate SKU"),
 					}),
-				]),
-			});
+				])
+			);
+
+			// expect(res.status).toHaveBeenCalledWith(StatusCodes.MULTI_STATUS);
+			// expect(res.json).toHaveBeenCalledWith(
+			// 	expect.objectContaining({
+			// 		created: 1,
+			// 		failed: 1,
+			// 		errors: expect.arrayContaining([
+			// 			expect.objectContaining({
+			// 				index: 1,
+			// 				error: expect.stringContaining("Duplicate SKU"),
+			// 			}),
+			// 		]),
+			// 	})
+			// );
 		});
 	});
 

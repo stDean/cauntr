@@ -90,6 +90,7 @@ export const productUtils = {
 			"productType",
 			"sellingPrice",
 			"brand",
+			"condition",
 		];
 
 		requiredFields.forEach(field => {
