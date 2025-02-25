@@ -19,6 +19,7 @@ import {
 	validationUtils,
 } from "../utils/helperUtils";
 import { prisma } from "../utils/prisma.h";
+import { supplierService } from "../services/supplierService";
 
 interface SwapProductRequest {
 	outgoing: { sku: string; quantity: number };
@@ -92,17 +93,6 @@ export const handleOutgoingProduct = async (
 	});
 };
 
-export const getOrCreateSupplier = async (
-	tx: Prisma.TransactionClient,
-	details: { name: string; contact: string }
-) => {
-	return tx.supplier.upsert({
-		where: { name_contact: details },
-		create: details,
-		update: {},
-	});
-};
-
 export const handleIncomingProduct = async (
 	tx: Prisma.TransactionClient,
 	company: Company,
@@ -128,10 +118,12 @@ export const handleIncomingProduct = async (
 
 	let supplier;
 	if (item.supplierName || item.supplierPhone) {
-		supplier = await getOrCreateSupplier(tx, {
-			name: item.supplierName || "Swap Supplier",
-			contact: item.supplierPhone || "000-0000000",
-		});
+		supplier = await supplierService.getOrCreate(
+			item.supplierName || "Swap Supplier",
+			item.supplierPhone || "000-0000000",
+			company.id,
+			company.tenantId
+		);
 	}
 
 	return tx.product.create({

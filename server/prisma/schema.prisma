@@ -101,6 +101,7 @@ model Company {
   auditLog              AuditLog[]
   Transaction           Transaction[]
   Customer              Customer[]
+  Supplier              Supplier[]
 
   @@index([company_email])
   @@index([id])
@@ -158,11 +159,20 @@ model User {
   Company     Company?      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   Product     Product[]
   Transaction Transaction[]
+  UserBank    UserBank[]
 
   @@index([id])
   @@index([email])
   @@index([tenantId])
   @@index([companyId])
+}
+
+model UserBank {
+  id       String  @id @default(uuid())
+  user     User?   @relation(fields: [userId], references: [id])
+  userId   String
+  bankName String
+  acctNo   String?
 }
 
 model WebhookEvent {
@@ -222,10 +232,13 @@ model ProductDeletionEvent {
 model Supplier {
   id        String    @id @default(uuid())
   name      String
+  tenantId  String
   contact   String
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   products  Product[]
+  Company   Company?  @relation(fields: [companyId], references: [id])
+  companyId String?
 
   @@unique([name, contact])
   @@index([id])

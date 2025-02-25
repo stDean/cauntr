@@ -36,8 +36,16 @@ router.route("/customers/all").get([AuthMiddleware], UserCtrl.getCustomers);
 router
 	.route("/customers/:id")
 	.get([AuthMiddleware, AdminMiddleware], UserCtrl.getCustomer)
-	.patch([AuthMiddleware, AdminMiddleware], UserCtrl.updateCustomer)
-	.delete([AuthMiddleware, AdminMiddleware], UserCtrl.deleteCustomer);
+	.patch([AuthMiddleware, AdminMiddleware], UserCtrl.updateCustomer);
+
+// ===========================================================================
+// DEBTOR
+// ===========================================================================
+
+router.route("/debtors/all").get([AuthMiddleware], UserCtrl.getDebtors);
+router
+	.route("/debtors/:id")
+	.get([AuthMiddleware, AdminMiddleware], UserCtrl.getDebtor);
 
 // ===========================================================================
 // SUPPLIER

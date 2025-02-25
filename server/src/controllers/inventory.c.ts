@@ -54,7 +54,9 @@ export const InventoryCtrl = {
 		if (productInput.supplierName || productInput.supplierPhone) {
 			supplier = await supplierService.getOrCreate(
 				productInput.supplierName,
-				productInput.supplierPhone
+				productInput.supplierPhone,
+				company.id,
+				company.tenantId
 			);
 		}
 
@@ -116,6 +118,8 @@ export const InventoryCtrl = {
 						productsWithSupplier.map(p => ({
 							name: p["Supplier Name"],
 							phone: p["Supplier Phone Number"],
+							companyId: company.id,
+							tenantId: company.tenantId,
 						}))
 				  )
 				: [];

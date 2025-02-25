@@ -138,7 +138,9 @@ describe("Inventory Controller", () => {
 			});
 			expect(supplierService.getOrCreate).toHaveBeenCalledWith(
 				"Test Supplier",
-				"1234567890"
+				"1234567890",
+				"company1",
+				"tenant1"
 			);
 			expect(prisma.product.create).toHaveBeenCalled();
 			expect(responseUtils.success).toHaveBeenCalledWith(

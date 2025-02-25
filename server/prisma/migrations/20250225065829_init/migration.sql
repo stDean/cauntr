@@ -88,6 +88,16 @@ CREATE TABLE `User` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `UserBank` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `bankName` VARCHAR(191) NOT NULL,
+    `acctNo` VARCHAR(191) NULL,
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `WebhookEvent` (
     `id` VARCHAR(191) NOT NULL,
     `eventId` VARCHAR(191) NOT NULL,
@@ -121,7 +131,7 @@ CREATE TABLE `Product` (
     `updatedAt` DATETIME(3) NOT NULL,
     `createdById` VARCHAR(191) NOT NULL,
     `companyId` VARCHAR(191) NOT NULL,
-    `supplierId` VARCHAR(191) NOT NULL,
+    `supplierId` VARCHAR(191) NULL,
 
     UNIQUE INDEX `Product_sku_key`(`sku`),
     UNIQUE INDEX `Product_serialNo_key`(`serialNo`),
@@ -198,7 +208,6 @@ CREATE TABLE `Customer` (
     `email` VARCHAR(191) NULL,
     `phone` VARCHAR(191) NOT NULL,
     `address` VARCHAR(191) NULL,
-    `customerType` ENUM('CUSTOMER', 'DEBTOR') NOT NULL DEFAULT 'CUSTOMER',
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
@@ -214,11 +223,11 @@ CREATE TABLE `PaymentPlan` (
     `id` VARCHAR(191) NOT NULL,
     `installmentCount` INTEGER NOT NULL,
     `frequency` ENUM('WEEKLY', 'BI_WEEKLY', 'MONTHLY', 'QUARTERLY', 'CUSTOM', 'ONE_TIME') NOT NULL,
-    `startDate` DATETIME(3) NOT NULL,
-    `endDate` DATETIME(3) NULL,
+    `customerType` ENUM('CUSTOMER', 'DEBTOR') NOT NULL DEFAULT 'CUSTOMER',
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
     `customerId` VARCHAR(191) NULL,
+    `transactionId` VARCHAR(191) NULL,
 
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -262,6 +271,9 @@ ALTER TABLE `CompanySubscription` ADD CONSTRAINT `CompanySubscription_companyId_
 ALTER TABLE `User` ADD CONSTRAINT `User_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE `UserBank` ADD CONSTRAINT `UserBank_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE `Product` ADD CONSTRAINT `Product_createdById_fkey` FOREIGN KEY (`createdById`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -293,6 +305,9 @@ ALTER TABLE `Customer` ADD CONSTRAINT `Customer_companyId_fkey` FOREIGN KEY (`co
 
 -- AddForeignKey
 ALTER TABLE `PaymentPlan` ADD CONSTRAINT `PaymentPlan_customerId_fkey` FOREIGN KEY (`customerId`) REFERENCES `Customer`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `PaymentPlan` ADD CONSTRAINT `PaymentPlan_transactionId_fkey` FOREIGN KEY (`transactionId`) REFERENCES `Transaction`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Payment` ADD CONSTRAINT `Payment_paymentPlanId_fkey` FOREIGN KEY (`paymentPlanId`) REFERENCES `PaymentPlan`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
