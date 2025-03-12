@@ -39,424 +39,537 @@ const checkOTP = async ({ email }: { email: string }): Promise<any> => {
 };
 
 export const AuthController = {
-  /**
-   * Create a new company and initialize its subscription.
-   * Steps:
-   * - Extract company details and billing info from the request.
-   * - Hash the provided password.
-   * - Initialize a transaction with the payment gateway (Paystack) to register the company as a customer.
-   * - If transaction initialization fails, throw an error.
-   * - Verify the customer code from Paystack.
-   * - Create the company record with a TRIAL subscription.
-   * - Send an OTP to the company email for verification.
-   * - Return a response with the payment URL for further action.
-   */
-  createCompany: async (req: Request, res: Response): Promise<void> => {
-    const {
-      company_name,
-      company_email,
-      password,
-      country,
-      billingPlan,
-      billingType,
-    } = req.body;
+	/**
+	 * Create a new company and initialize its subscription.
+	 * Steps:
+	 * - Extract company details and billing info from the request.
+	 * - Hash the provided password.
+	 * - Initialize a transaction with the payment gateway (Paystack) to register the company as a customer.
+	 * - If transaction initialization fails, throw an error.
+	 * - Verify the customer code from Paystack.
+	 * - Create the company record with a TRIAL subscription.
+	 * - Send an OTP to the company email for verification.
+	 * - Return a response with the payment URL for further action.
+	 */
+	// createCompany: async (req: Request, res: Response): Promise<void> => {
+	// 	const {
+	// 		company_name,
+	// 		company_email,
+	// 		password,
+	// 		country,
+	// 		billingPlan,
+	// 		billingType,
+	// 	} = req.body;
 
-    // Hash the password before storing it.
-    const hashedPassword = await argon2.hash(password);
+	// 	// Hash the password before storing it.
+	// 	const hashedPassword = await argon2.hash(password);
 
-    // Initialize the company as a customer with Paystack.
-    const { error, transaction, verify } =
-      await paystackService.initializeTransaction({
-        email: company_email,
-        amount: "5000",
-      });
+	// 	// Initialize the company as a customer with Paystack.
+	// 	const { error, transaction, verify } =
+	// 		await paystackService.initializeTransaction({
+	// 			email: company_email,
+	// 			amount: "5000",
+	// 		});
 
-    // If initialization fails, throw an error.
-    if (error || !transaction || !verify) {
-      throw new CustomAPIError(
-        "Payment gateway initialization failed",
-        StatusCodes.BAD_GATEWAY
-      );
-    }
+	// 	// If initialization fails, throw an error.
+	// 	if (error || !transaction || !verify) {
+	// 		throw new CustomAPIError(
+	// 			"Payment gateway initialization failed",
+	// 			StatusCodes.BAD_GATEWAY
+	// 		);
+	// 	}
 
-    // Ensure that the customer was verified successfully.
-    if (!verify.customer?.customer_code) {
-      throw new CustomAPIError(
-        "Payment customer verification failed",
-        StatusCodes.BAD_GATEWAY
-      );
-    }
+	// 	// Ensure that the customer was verified successfully.
+	// 	if (!verify.customer?.customer_code) {
+	// 		throw new CustomAPIError(
+	// 			"Payment customer verification failed",
+	// 			StatusCodes.BAD_GATEWAY
+	// 		);
+	// 	}
 
-    // Create the company record in the database with a TRIAL subscription.
-    const newCompany = await prisma.company.create({
-      data: {
-        company_name,
-        company_email,
-        password: hashedPassword,
-        country,
-        subscriptionStatus: "TRIAL",
-        Subscription: {
-          connectOrCreate: {
-            where: { payStackCustomerID: verify.customer.customer_code },
-            create: {
-              tenantId: "change",
-              tier: billingPlan.toUpperCase() as Tier,
-              tierType: billingType === "month" ? "MONTHLY" : "YEARLY",
-              payStackCustomerID: verify?.customer.customer_code,
-            },
-          },
-        },
-      },
-    });
+	// 	// Create the company record in the database with a TRIAL subscription.
+	// 	const newCompany = await prisma.company.create({
+	// 		data: {
+	// 			company_name,
+	// 			company_email,
+	// 			password: hashedPassword,
+	// 			country,
+	// 			subscriptionStatus: "TRIAL",
+	// 			Subscription: {
+	// 				connectOrCreate: {
+	// 					where: { payStackCustomerID: verify.customer.customer_code },
+	// 					create: {
+	// 						tenantId: "change",
+	// 						tier: billingPlan.toUpperCase() as Tier,
+	// 						tierType: billingType === "month" ? "MONTHLY" : "YEARLY",
+	// 						payStackCustomerID: verify?.customer.customer_code,
+	// 					},
+	// 				},
+	// 			},
+	// 		},
+	// 	});
 
-    // Send an OTP for email verification.
-    await handleOtpForCompany(newCompany.company_email).catch(error => {
-      throw new CustomAPIError("OTP sending failed", StatusCodes.BAD_GATEWAY);
-    });
+	// 	// Send an OTP for email verification.
+	// 	await handleOtpForCompany(newCompany.company_email).catch(error => {
+	// 		throw new CustomAPIError("OTP sending failed", StatusCodes.BAD_GATEWAY);
+	// 	});
 
-    // Return success response with the payment URL.
-    res.status(StatusCodes.CREATED).json({
-      success: true,
-      msg: "Company created successfully, verify your email to continue.",
-      paymentUrl: transaction.authorization_url,
-    });
-  },
+	// 	// Return success response with the payment URL.
+	// 	res.status(StatusCodes.CREATED).json({
+	// 		success: true,
+	// 		msg: "Company created successfully, verify your email to continue.",
+	// 		paymentUrl: transaction.authorization_url,
+	// 	});
+	// },
 
-  /**
-   * Verify the OTP sent to the company's email.
-   * Steps:
-   * - Check that an OTP is provided.
-   * - Find a matching, non-expired, unverified OTP record.
-   * - Retrieve the company details.
-   * - Determine the subscription plan name and set a start date.
-   * - Create a Paystack subscription for the company.
-   * - Update the company's subscription details, mark it as verified, and remove the OTP record.
-   * - Refund the initial fee to the company.
-   * - Create a new user record for the company.
-   * - Generate and send a JWT via a cookie.
-   */
-  verifyOTP: async (req: Request, res: Response): Promise<void> => {
-    const { otp, company_email } = req.body;
-    if (!otp) {
-      throw new BadRequestError("Please enter the OTP sent to your email.");
-    }
+	createCompanyStripe: async (req: Request, res: Response): Promise<void> => {
+		const {
+			company_name,
+			company_email,
+			password,
+			country,
+			billingPlan,
+			billingType,
+		} = req.body;
 
-    // Check for an existing OTP record that matches the provided OTP and is still valid.
-    const existingOtp = await prisma.otp.findFirst({
-      where: {
-        email: company_email,
-        otp,
-        expiresAt: { gte: new Date() }, // OTP is not expired
-        verified: false,
-      },
-    });
-    if (!existingOtp) {
-      throw new BadRequestError("Invalid OTP, please try again.");
-    }
+		// Hash the password before storing it.
+		const hashedPassword = await argon2.hash(password);
 
-    // Retrieve the company along with its subscription details.
-    const company = await prisma.company.findUnique({
-      where: { company_email },
-      include: {
-        Subscription: {
-          select: {
-            payStackCustomerID: true,
-            tier: true,
-            tierType: true,
-            authorization_code: true,
-            transactionId: true,
-          },
-        },
-      },
-    });
-    if (!company) {
-      throw new BadRequestError("Company not found");
-    }
+		// Create the company record in the database with a TRIAL subscription.
+		const newCompany = await prisma.company.create({
+			data: {
+				company_name,
+				company_email,
+				password: hashedPassword,
+				country,
+				subscriptionStatus: "TRIAL",
+			},
+		});
 
-    // Build the plan name based on subscription tier and type.
-    const planName = `${company!.Subscription!.tier.toLowerCase()}_${company!
-      .Subscription!.tierType.replace("LY", "")
-      .toLowerCase()}`;
-    // Set the start date (e.g., a 7-day trial period).
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() + 1);
+		const subscription = await prisma.companyStripeSubscription.create({
+			data: { tenantId: newCompany.tenantId, companyId: newCompany.id },
+		});
 
-    // Create a subscription on Paystack for the company.
-    const { error, subscription } = await paystackService.createSubscription({
-      customer: company.Subscription!.payStackCustomerID,
-      plan: my_plans[planName],
-      start_date: startDate,
-      authorization: String(company.Subscription!.authorization_code!),
-    });
+		// Send an OTP for email verification.
+		await handleOtpForCompany(newCompany.company_email).catch(error => {
+			throw new CustomAPIError("OTP sending failed", StatusCodes.BAD_GATEWAY);
+		});
 
-    if (error) {
-      throw new CustomAPIError(error, StatusCodes.BAD_GATEWAY);
-    }
+		// Return success response with the payment URL.
+		res.status(StatusCodes.CREATED).json({
+			success: true,
+			msg: "Company created successfully, verify your email to continue.",
+			subscription,
+			newCompany,
+		});
+	},
 
-    // Update the company's subscription details in the database.
-    const updatedCompany = await prisma.company.update({
-      where: { id: company.id },
-      data: {
-        subscriptionStatus: "TRIAL",
-        verified: true,
-        Subscription: {
-          update: {
-            data: {
-              tenantId: company.tenantId,
-              payStackSubscriptionCode: subscription?.data.subscription_code,
-              startDate: new Date(),
-              endDate: subscription?.endDate,
-            },
-          },
-        },
-      },
-    });
+	/**
+	 * Verify the OTP sent to the company's email.
+	 * Steps:
+	 * - Check that an OTP is provided.
+	 * - Find a matching, non-expired, unverified OTP record.
+	 * - Retrieve the company details.
+	 * - Determine the subscription plan name and set a start date.
+	 * - Create a Paystack subscription for the company.
+	 * - Update the company's subscription details, mark it as verified, and remove the OTP record.
+	 * - Refund the initial fee to the company.
+	 * - Create a new user record for the company.
+	 * - Generate and send a JWT via a cookie.
+	 */
+	// verifyOTP: async (req: Request, res: Response): Promise<void> => {
+	// 	const { otp, company_email } = req.body;
+	// 	if (!otp) {
+	// 		throw new BadRequestError("Please enter the OTP sent to your email.");
+	// 	}
 
-    // Remove the used OTP record.
-    await prisma.otp.delete({
-      where: { id: existingOtp.id },
-    });
+	// 	// Check for an existing OTP record that matches the provided OTP and is still valid.
+	// 	const existingOtp = await prisma.otp.findFirst({
+	// 		where: {
+	// 			email: company_email,
+	// 			otp,
+	// 			expiresAt: { gte: new Date() }, // OTP is not expired
+	// 			verified: false,
+	// 		},
+	// 	});
+	// 	if (!existingOtp) {
+	// 		throw new BadRequestError("Invalid OTP, please try again.");
+	// 	}
 
-    // Refund the initial fee to the company.
-    const { error: refundErr, msg } = await paystackService.refundTransaction({
-      transId: Number(company!.Subscription!.transactionId),
-      amount: "5000",
-    });
+	// 	// Retrieve the company along with its subscription details.
+	// 	const company = await prisma.company.findUnique({
+	// 		where: { company_email },
+	// 		include: {
+	// 			Subscription: {
+	// 				select: {
+	// 					payStackCustomerID: true,
+	// 					tier: true,
+	// 					tierType: true,
+	// 					authorization_code: true,
+	// 					transactionId: true,
+	// 				},
+	// 			},
+	// 		},
+	// 	});
+	// 	if (!company) {
+	// 		throw new BadRequestError("Company not found");
+	// 	}
 
-    if (refundErr) {
-      throw new CustomAPIError(refundErr, StatusCodes.BAD_GATEWAY);
-    }
+	// 	// Build the plan name based on subscription tier and type.
+	// 	const planName = `${company!.Subscription!.tier.toLowerCase()}_${company!
+	// 		.Subscription!.tierType.replace("LY", "")
+	// 		.toLowerCase()}`;
+	// 	// Set the start date (e.g., a 7-day trial period).
+	// 	const startDate = new Date();
+	// 	startDate.setDate(startDate.getDate() + 1);
 
-    // Create a new user record for the company with ADMIN role.
-    const user = await prisma.user.create({
-      data: {
-        tenantId: company.tenantId,
-        companyId: updatedCompany.id,
-        email: updatedCompany.company_email,
-        password: updatedCompany.password,
-        role: "ADMIN",
-      },
-    });
+	// 	// Create a subscription on Paystack for the company.
+	// 	const { error, subscription } = await paystackService.createSubscription({
+	// 		customer: company.Subscription!.payStackCustomerID,
+	// 		plan: my_plans[planName],
+	// 		start_date: startDate,
+	// 		authorization: String(company.Subscription!.authorization_code!),
+	// 	});
 
-    // Generate a JWT token for authentication.
-    const jwtToken = createJWT({
-      email: user.email,
-      companyId: user.companyId!,
-    });
+	// 	if (error) {
+	// 		throw new CustomAPIError(error, StatusCodes.BAD_GATEWAY);
+	// 	}
 
-    // Set the JWT token as an HTTP-only cookie.
-    res.cookie("token", jwtToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+	// 	// Update the company's subscription details in the database.
+	// 	const updatedCompany = await prisma.company.update({
+	// 		where: { id: company.id },
+	// 		data: {
+	// 			subscriptionStatus: "TRIAL",
+	// 			verified: true,
+	// 			Subscription: {
+	// 				update: {
+	// 					data: {
+	// 						tenantId: company.tenantId,
+	// 						payStackSubscriptionCode: subscription?.data.subscription_code,
+	// 						startDate: new Date(),
+	// 						endDate: subscription?.endDate,
+	// 					},
+	// 				},
+	// 			},
+	// 		},
+	// 	});
 
-    // Return success response.
-    res
-      .status(StatusCodes.OK)
-      .json({ msg: "OTP verified", role: user.role, success: true });
-  },
+	// 	// Remove the used OTP record.
+	// 	await prisma.otp.delete({
+	// 		where: { id: existingOtp.id },
+	// 	});
 
-  /**
-   * Resend the registration OTP to the provided email.
-   * Steps:
-   * - Validate that an email is provided.
-   * - Ensure a company exists for that email.
-   * - Trigger the OTP resend process.
-   * - Return a confirmation response.
-   */
-  resendRegistrationOTP: async (req: Request, res: Response): Promise<void> => {
-    const { email } = req.body;
-    if (!email) {
-      throw new BadRequestError("Email is required.");
-    }
+	// 	// Refund the initial fee to the company.
+	// 	const { error: refundErr, msg } = await paystackService.refundTransaction({
+	// 		transId: Number(company!.Subscription!.transactionId),
+	// 		amount: "5000",
+	// 	});
 
-    // Check that a company exists with the provided email.
-    const existingCompany = await prisma.company.findUnique({
-      where: { company_email: email },
-    });
-    if (!existingCompany) {
-      throw new BadRequestError("No company was found with that email.");
-    }
+	// 	if (refundErr) {
+	// 		throw new CustomAPIError(refundErr, StatusCodes.BAD_GATEWAY);
+	// 	}
 
-    // Trigger the OTP check/resend process.
-    await checkOTP(email);
+	// 	// Create a new user record for the company with ADMIN role.
+	// 	const user = await prisma.user.create({
+	// 		data: {
+	// 			tenantId: company.tenantId,
+	// 			companyId: updatedCompany.id,
+	// 			email: updatedCompany.company_email,
+	// 			password: updatedCompany.password,
+	// 			role: "ADMIN",
+	// 		},
+	// 	});
 
-    res
-      .status(StatusCodes.OK)
-      .json({ msg: "OTP has been sent to your email.", success: true });
-  },
+	// 	// Generate a JWT token for authentication.
+	// 	const jwtToken = createJWT({
+	// 		email: user.email,
+	// 		companyId: user.companyId!,
+	// 	});
 
-  /**
-   * Login a user.
-   * Steps:
-   * - Validate that both email and password are provided.
-   * - Find the user by email.
-   * - Verify the password.
-   * - Create and set a JWT token as an HTTP-only cookie.
-   * - Return a success response.
-   */
-  login: async (req: Request, res: Response): Promise<void> => {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      throw new BadRequestError("Please provide email and password");
-    }
+	// 	// Set the JWT token as an HTTP-only cookie.
+	// 	res.cookie("token", jwtToken, {
+	// 		httpOnly: true,
+	// 		secure: process.env.NODE_ENV === "production",
+	// 		sameSite: "strict",
+	// 		maxAge: 7 * 24 * 60 * 60 * 1000,
+	// 	});
 
-    // Retrieve the user along with their associated company.
-    const user = await prisma.user.findUnique({
-      where: { email },
-      include: { Company: true },
-    });
-    if (!user) {
-      throw new BadRequestError("No user with this credentials.");
-    }
+	// 	// Return success response.
+	// 	res
+	// 		.status(StatusCodes.OK)
+	// 		.json({ msg: "OTP verified", role: user.role, success: true });
+	// },
 
-    // Verify that the provided password matches the stored hashed password.
-    const passwordMatch = await argon2.verify(user.password, password);
-    if (!passwordMatch) {
-      throw new BadRequestError("Incorrect password, please try again.");
-    }
+	verifyOTPStripe: async (req: Request, res: Response): Promise<void> => {
+		const { otp, company_email } = req.body;
+		if (!otp) {
+			throw new BadRequestError("Please enter the OTP sent to your email.");
+		}
 
-    // Generate a JWT token.
-    const jwtToken = createJWT({
-      email: user.email,
-      companyId: user.companyId!,
-    });
+		// Check for an existing OTP record that matches the provided OTP and is still valid.
+		const existingOtp = await prisma.otp.findFirst({
+			where: {
+				email: company_email,
+				otp,
+				expiresAt: { gte: new Date() }, // OTP is not expired
+				verified: false,
+			},
+		});
+		if (!existingOtp) {
+			throw new BadRequestError("Invalid OTP, please try again.");
+		}
 
-    // Set the JWT as an HTTP-only cookie.
-    res.cookie("token", jwtToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+		// Retrieve the company along with its subscription details.
+		const company = await prisma.company.findUnique({
+			where: { company_email },
+		});
+		if (!company) {
+			throw new BadRequestError("Company not found");
+		}
 
-    res
-      .status(StatusCodes.OK)
-      .json({ msg: "User logged in successfully.", success: true });
-  },
+		// Update the company's subscription details in the database.
+		const updatedCompany = await prisma.company.update({
+			where: { id: company.id },
+			data: {
+				subscriptionStatus: "TRIAL",
+				verified: true,
+			},
+		});
 
-  /**
-   * Logout the user by clearing the authentication cookie.
-   */
-  logout: async (req: Request, res: Response): Promise<void> => {
-    res.clearCookie("token");
-    res
-      .status(StatusCodes.OK)
-      .json({ msg: "Logged out successfully", success: true });
-  },
+		// Remove the used OTP record.
+		await prisma.otp.delete({
+			where: { id: existingOtp.id },
+		});
 
-  /**
-   * Initiate the password reset process.
-   * Steps:
-   * - Validate that email and new password are provided.
-   * - Find the user by email.
-   * - Generate a verification token (OTP) and store it.
-   * - Send the OTP to the user's email.
-   */
-  forgotPassword: async (req: Request, res: Response): Promise<void> => {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      throw new BadRequestError("Please provide email and password");
-    }
+		// Create a new user record for the company with ADMIN role.
+		const user = await prisma.user.create({
+			data: {
+				tenantId: company.tenantId,
+				companyId: updatedCompany.id,
+				email: updatedCompany.company_email,
+				password: updatedCompany.password,
+				role: "ADMIN",
+			},
+		});
 
-    // Check that a user exists with the provided email.
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
-    if (!user) {
-      throw new BadRequestError("No user with this credentials.");
-    }
+		// Generate a JWT token for authentication.
+		const jwtToken = createJWT({
+			email: user.email,
+			companyId: user.companyId!,
+		});
 
-    // Generate a verification token and expiration date.
-    const { token, expires } = await generateVerificationToken(user!.email);
+		// Set the JWT token as an HTTP-only cookie.
+		res.cookie("token", jwtToken, {
+			httpOnly: true,
+			secure: process.env.NODE_ENV === "production",
+			sameSite: "strict",
+			maxAge: 7 * 24 * 60 * 60 * 1000,
+		});
 
-    // Store the OTP in the database.
-    await prisma.otp.create({
-      data: { email, otp: token, expiresAt: expires },
-    });
+		// Return success response.
+		res
+			.status(StatusCodes.OK)
+			.json({ msg: "OTP verified", role: user.role, success: true });
+	},
 
-    // Send the OTP to the user's email.
-    await emailService.sendVerificationOTP({ email, token });
+	/**
+	 * Resend the registration OTP to the provided email.
+	 * Steps:
+	 * - Validate that an email is provided.
+	 * - Ensure a company exists for that email.
+	 * - Trigger the OTP resend process.
+	 * - Return a confirmation response.
+	 */
+	resendRegistrationOTP: async (req: Request, res: Response): Promise<void> => {
+		const { email } = req.body;
+		if (!email) {
+			throw new BadRequestError("Email is required.");
+		}
 
-    res.status(StatusCodes.OK).json({
-      msg: "Reset OTP has been sent to your email.",
-      success: true,
-    });
-  },
+		// Check that a company exists with the provided email.
+		const existingCompany = await prisma.company.findUnique({
+			where: { company_email: email },
+		});
+		if (!existingCompany) {
+			throw new BadRequestError("No company was found with that email.");
+		}
 
-  /**
-   * Resend an OTP for password reset.
-   * Steps:
-   * - Validate that an email is provided.
-   * - Check that a user exists with that email.
-   * - Trigger the OTP resend mechanism.
-   * - Return a confirmation response.
-   */
-  resendOTP: async (req: Request, res: Response): Promise<void> => {
-    const { email } = req.body;
-    if (!email) {
-      throw new BadRequestError("Email is required.");
-    }
+		// Trigger the OTP check/resend process.
+		await checkOTP(email);
 
-    // Verify that the user exists.
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    });
-    if (!existingUser) {
-      throw new BadRequestError("No user was found with that email.");
-    }
+		res
+			.status(StatusCodes.OK)
+			.json({ msg: "OTP has been sent to your email.", success: true });
+	},
 
-    // Trigger OTP resend process.
-    await checkOTP(email);
+	/**
+	 * Login a user.
+	 * Steps:
+	 * - Validate that both email and password are provided.
+	 * - Find the user by email.
+	 * - Verify the password.
+	 * - Create and set a JWT token as an HTTP-only cookie.
+	 * - Return a success response.
+	 */
+	login: async (req: Request, res: Response): Promise<void> => {
+		const { email, password } = req.body;
+		if (!email || !password) {
+			throw new BadRequestError("Please provide email and password");
+		}
 
-    res.status(StatusCodes.OK).json({
-      msg: "OTP has been sent to your email.",
-      success: true,
-    });
-  },
+		// Retrieve the user along with their associated company.
+		const user = await prisma.user.findUnique({
+			where: { email },
+			include: { Company: true },
+		});
+		if (!user) {
+			throw new BadRequestError("No user with this credentials.");
+		}
 
-  /**
-   * Reset the user's password using an OTP.
-   * Steps:
-   * - Validate that email, OTP, and new password are provided.
-   * - Find the matching OTP record.
-   * - Hash the new password and update the user's password.
-   * - Delete the OTP record.
-   * - Return a success response.
-   */
-  resetPassword: async (req: Request, res: Response): Promise<void> => {
-    const { email, otp, password } = req.body;
-    if (!email || !otp || !password) {
-      throw new BadRequestError("Please provide email, password and OTP");
-    }
+		// Verify that the provided password matches the stored hashed password.
+		const passwordMatch = await argon2.verify(user.password, password);
+		if (!passwordMatch) {
+			throw new BadRequestError("Incorrect password, please try again.");
+		}
 
-    // Find a valid OTP record.
-    const existingOtp = await prisma.otp.findFirst({
-      where: { email, otp },
-    });
-    if (!existingOtp) {
-      throw new BadRequestError("Invalid OTP.");
-    }
+		// Generate a JWT token.
+		const jwtToken = createJWT({
+			email: user.email,
+			companyId: user.companyId!,
+		});
 
-    // Hash the new password.
-    const hashPassword = await argon2.hash(password);
-    // Update the user's password.
-    await prisma.user.update({
-      where: { email },
-      data: { password: hashPassword },
-    });
+		// Set the JWT as an HTTP-only cookie.
+		res.cookie("token", jwtToken, {
+			httpOnly: true,
+			secure: process.env.NODE_ENV === "production",
+			sameSite: "strict",
+			maxAge: 7 * 24 * 60 * 60 * 1000,
+		});
 
-    // Remove the OTP record.
-    await prisma.otp.delete({
-      where: { id: existingOtp.id },
-    });
+		res
+			.status(StatusCodes.OK)
+			.json({ msg: "User logged in successfully.", success: true });
+	},
 
-    res.status(StatusCodes.OK).json({
-      msg: "Password has been reset successfully.",
-      success: true,
-    });
-  },
+	/**
+	 * Logout the user by clearing the authentication cookie.
+	 */
+	logout: async (req: Request, res: Response): Promise<void> => {
+		res.clearCookie("token");
+		res
+			.status(StatusCodes.OK)
+			.json({ msg: "Logged out successfully", success: true });
+	},
+
+	/**
+	 * Initiate the password reset process.
+	 * Steps:
+	 * - Validate that email and new password are provided.
+	 * - Find the user by email.
+	 * - Generate a verification token (OTP) and store it.
+	 * - Send the OTP to the user's email.
+	 */
+	forgotPassword: async (req: Request, res: Response): Promise<void> => {
+		const { email, password } = req.body;
+		if (!email || !password) {
+			throw new BadRequestError("Please provide email and password");
+		}
+
+		// Check that a user exists with the provided email.
+		const user = await prisma.user.findUnique({
+			where: { email },
+		});
+		if (!user) {
+			throw new BadRequestError("No user with this credentials.");
+		}
+
+		// Generate a verification token and expiration date.
+		const { token, expires } = await generateVerificationToken(user!.email);
+
+		// Store the OTP in the database.
+		await prisma.otp.create({
+			data: { email, otp: token, expiresAt: expires },
+		});
+
+		// Send the OTP to the user's email.
+		await emailService.sendVerificationOTP({ email, token });
+
+		res.status(StatusCodes.OK).json({
+			msg: "Reset OTP has been sent to your email.",
+			success: true,
+		});
+	},
+
+	/**
+	 * Resend an OTP for password reset.
+	 * Steps:
+	 * - Validate that an email is provided.
+	 * - Check that a user exists with that email.
+	 * - Trigger the OTP resend mechanism.
+	 * - Return a confirmation response.
+	 */
+	resendOTP: async (req: Request, res: Response): Promise<void> => {
+		const { email } = req.body;
+		if (!email) {
+			throw new BadRequestError("Email is required.");
+		}
+
+		// Verify that the user exists.
+		const existingUser = await prisma.user.findUnique({
+			where: { email },
+		});
+		if (!existingUser) {
+			throw new BadRequestError("No user was found with that email.");
+		}
+
+		// Trigger OTP resend process.
+		await checkOTP(email);
+
+		res.status(StatusCodes.OK).json({
+			msg: "OTP has been sent to your email.",
+			success: true,
+		});
+	},
+
+	/**
+	 * Reset the user's password using an OTP.
+	 * Steps:
+	 * - Validate that email, OTP, and new password are provided.
+	 * - Find the matching OTP record.
+	 * - Hash the new password and update the user's password.
+	 * - Delete the OTP record.
+	 * - Return a success response.
+	 */
+	resetPassword: async (req: Request, res: Response): Promise<void> => {
+		const { email, otp, password } = req.body;
+		if (!email || !otp || !password) {
+			throw new BadRequestError("Please provide email, password and OTP");
+		}
+
+		// Find a valid OTP record.
+		const existingOtp = await prisma.otp.findFirst({
+			where: { email, otp },
+		});
+		if (!existingOtp) {
+			throw new BadRequestError("Invalid OTP.");
+		}
+
+		// Hash the new password.
+		const hashPassword = await argon2.hash(password);
+		// Update the user's password.
+		await prisma.user.update({
+			where: { email },
+			data: { password: hashPassword },
+		});
+
+		// Remove the OTP record.
+		await prisma.otp.delete({
+			where: { id: existingOtp.id },
+		});
+
+		res.status(StatusCodes.OK).json({
+			msg: "Password has been reset successfully.",
+			success: true,
+		});
+	},
 };
-

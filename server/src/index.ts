@@ -13,9 +13,14 @@ import Routes from "./routes/index.js";
 import PayStackWebhook from "./webhook/paystack.w.js";
 import { ScheduleJob } from "./jobs/schedule.j.js";
 import { scheduleJob } from "node-schedule";
+import StripeWebhook from "./webhook/stripe.w.js";
 
 const app: Application = express();
 dotenv.config();
+
+// Webhooks
+app.use("/api/v1", PayStackWebhook);
+app.use("/api/v1", StripeWebhook);
 
 // Middleware order matters (Helmet first for security)
 app.use(cors()); // Enable CORS
@@ -30,7 +35,6 @@ app.get("/", (req: Request, res: Response) => {
 });
 
 app.use("/api/v1", Routes);
-app.use("/api/v1", PayStackWebhook);
 
 // Error handling middleware
 app.use(notFoundMiddleware);

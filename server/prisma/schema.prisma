@@ -19,6 +19,7 @@ enum SubscriptionStatus {
 }
 
 enum Tier {
+  FREE
   PERSONAL
   TEAM
   ENTERPRISE
@@ -80,28 +81,30 @@ enum AuditAction {
 // Models
 // ========================
 model Company {
-  id                    String               @id @default(uuid())
-  tenantId              String               @unique @default(uuid())
-  company_name          String
-  company_email         String               @unique
-  password              String
-  country               String
-  canUpdate             Boolean              @default(true)
-  canCancel             Boolean              @default(true)
-  verified              Boolean              @default(false)
-  pendingPlanUpdate     String?              @db.VarChar(255)
-  nextBillingDate       DateTime?            @db.Timestamp(6)
-  scheduledDeactivation DateTime?            @db.Timestamp(6)
-  subscriptionStatus    SubscriptionStatus   @default(TRIAL)
-  Subscription          CompanySubscription?
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
-  User                  User[]
-  Product               Product[]
-  auditLog              AuditLog[]
-  Transaction           Transaction[]
-  Customer              Customer[]
-  Supplier              Supplier[]
+  id                        String                     @id @default(uuid())
+  tenantId                  String                     @unique @default(uuid())
+  company_name              String
+  company_email             String                     @unique
+  password                  String
+  country                   String
+  canUpdate                 Boolean                    @default(true)
+  canCancel                 Boolean                    @default(true)
+  verified                  Boolean                    @default(false)
+  pendingPlanUpdate         String?                    @db.VarChar(255)
+  nextBillingDate           DateTime?                  @db.Timestamp(6)
+  scheduledDeactivation     DateTime?                  @db.Timestamp(6)
+  subscriptionStatus        SubscriptionStatus         @default(TRIAL)
+  Subscription              CompanySubscription?
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  User                      User[]
+  Product                   Product[]
+  auditLog                  AuditLog[]
+  Transaction               Transaction[]
+  Customer                  Customer[]
+  Supplier                  Supplier[]
+  CompanyStripeSubscription CompanyStripeSubscription?
+  Notification              Notification[]
 
   @@index([company_email])
   @@index([id])
@@ -133,6 +136,41 @@ model CompanySubscription {
   @@unique([payStackSubscriptionCode])
   @@index([id])
   @@index([tenantId])
+}
+
+model CompanyStripeSubscription {
+  id                       String      @id @default(uuid())
+  tenantId                 String // Links to Company.tenantId
+  stripeCustomerID         String?
+  stripeSubscriptionID     String?
+  stripeSubscriptionItemId String?
+  tier                     Tier        @default(FREE)
+  tierType                 BillingType @default(MONTHLY)
+  startDate                DateTime?
+  endDate                  DateTime?
+  last4                    String?
+  exp_month                Int?
+  exp_year                 Int?
+  card_type                String?
+  createdAt                DateTime    @default(now())
+  updatedAt                DateTime    @updatedAt
+  companyId                String?     @unique
+  company                  Company?    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([stripeCustomerID])
+  @@unique([stripeSubscriptionID])
+  @@index([id])
+  @@index([tenantId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  Company   Company? @relation(fields: [companyId], references: [id])
+  companyId String?
+  tenantId  String
+  message   String
+  type      String
+  createdAt DateTime @default(now())
 }
 
 model Otp {

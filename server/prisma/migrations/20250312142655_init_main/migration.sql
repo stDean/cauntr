@@ -32,7 +32,7 @@ CREATE TABLE `CompanySubscription` (
     `payStackSubscriptionCode` VARCHAR(191) NULL,
     `authorization_code` VARCHAR(191) NULL,
     `transactionId` VARCHAR(191) NULL,
-    `tier` ENUM('PERSONAL', 'TEAM', 'ENTERPRISE') NOT NULL DEFAULT 'PERSONAL',
+    `tier` ENUM('FREE', 'PERSONAL', 'TEAM', 'ENTERPRISE') NOT NULL DEFAULT 'PERSONAL',
     `tierType` ENUM('MONTHLY', 'YEARLY') NOT NULL DEFAULT 'MONTHLY',
     `startDate` DATETIME(3) NULL,
     `endDate` DATETIME(3) NULL,
@@ -50,6 +50,45 @@ CREATE TABLE `CompanySubscription` (
     INDEX `CompanySubscription_tenantId_idx`(`tenantId`),
     UNIQUE INDEX `CompanySubscription_payStackCustomerID_key`(`payStackCustomerID`),
     UNIQUE INDEX `CompanySubscription_payStackSubscriptionCode_key`(`payStackSubscriptionCode`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `CompanyStripeSubscription` (
+    `id` VARCHAR(191) NOT NULL,
+    `tenantId` VARCHAR(191) NOT NULL,
+    `stripeCustomerID` VARCHAR(191) NULL,
+    `stripeSubscriptionID` VARCHAR(191) NULL,
+    `stripeSubscriptionItemId` VARCHAR(191) NULL,
+    `tier` ENUM('FREE', 'PERSONAL', 'TEAM', 'ENTERPRISE') NOT NULL DEFAULT 'FREE',
+    `tierType` ENUM('MONTHLY', 'YEARLY') NOT NULL DEFAULT 'MONTHLY',
+    `startDate` DATETIME(3) NULL,
+    `endDate` DATETIME(3) NULL,
+    `last4` VARCHAR(191) NULL,
+    `exp_month` INTEGER NULL,
+    `exp_year` INTEGER NULL,
+    `card_type` VARCHAR(191) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `companyId` VARCHAR(191) NULL,
+
+    UNIQUE INDEX `CompanyStripeSubscription_companyId_key`(`companyId`),
+    INDEX `CompanyStripeSubscription_id_idx`(`id`),
+    INDEX `CompanyStripeSubscription_tenantId_idx`(`tenantId`),
+    UNIQUE INDEX `CompanyStripeSubscription_stripeCustomerID_key`(`stripeCustomerID`),
+    UNIQUE INDEX `CompanyStripeSubscription_stripeSubscriptionID_key`(`stripeSubscriptionID`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Notification` (
+    `id` VARCHAR(191) NOT NULL,
+    `companyId` VARCHAR(191) NULL,
+    `tenantId` VARCHAR(191) NOT NULL,
+    `message` VARCHAR(191) NOT NULL,
+    `type` VARCHAR(191) NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -155,9 +194,11 @@ CREATE TABLE `ProductDeletionEvent` (
 CREATE TABLE `Supplier` (
     `id` VARCHAR(191) NOT NULL,
     `name` VARCHAR(191) NOT NULL,
+    `tenantId` VARCHAR(191) NOT NULL,
     `contact` VARCHAR(191) NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
+    `companyId` VARCHAR(191) NULL,
 
     INDEX `Supplier_id_idx`(`id`),
     INDEX `Supplier_name_idx`(`name`),
@@ -268,6 +309,12 @@ CREATE TABLE `AuditLog` (
 ALTER TABLE `CompanySubscription` ADD CONSTRAINT `CompanySubscription_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE `CompanyStripeSubscription` ADD CONSTRAINT `CompanyStripeSubscription_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Notification` ADD CONSTRAINT `Notification_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE `User` ADD CONSTRAINT `User_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -284,6 +331,9 @@ ALTER TABLE `Product` ADD CONSTRAINT `Product_supplierId_fkey` FOREIGN KEY (`sup
 
 -- AddForeignKey
 ALTER TABLE `ProductDeletionEvent` ADD CONSTRAINT `ProductDeletionEvent_productId_fkey` FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Supplier` ADD CONSTRAINT `Supplier_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Transaction` ADD CONSTRAINT `Transaction_createdById_fkey` FOREIGN KEY (`createdById`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;

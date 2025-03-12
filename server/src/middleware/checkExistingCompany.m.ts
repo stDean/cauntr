@@ -21,8 +21,7 @@ export const checkExistingCompany = async (
 			// Handle unverified company with active payment and no paystack customer code
 			if (
 				!existingCompany.verified &&
-				existingCompany.subscriptionStatus !== "ACTIVE" &&
-				!existingCompany!.Subscription!.payStackCustomerID
+				existingCompany.subscriptionStatus !== "ACTIVE"
 			) {
 				await handleOtpForCompany(existingCompany.company_email);
 				res.status(StatusCodes.OK).json({
@@ -40,7 +39,7 @@ export const checkExistingCompany = async (
 			) {
 				res.status(StatusCodes.BAD_REQUEST).json({
 					success: false,
-					message: "Company already exists. Please update your payment method.",
+					message: "Company already exists.",
 				});
 
 				return;

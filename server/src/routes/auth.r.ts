@@ -9,9 +9,9 @@ router
 	.route("/registerCompany")
 	.post(
 		[validateCompanyRegistration, checkExistingCompany],
-		AuthController.createCompany
+		AuthController.createCompanyStripe
 	);
-router.route("/verifyOtp").post(AuthController.verifyOTP);
+router.route("/verifyOtp").post(AuthController.verifyOTPStripe);
 router
 	.route("/resendRegistrationOTP")
 	.post(AuthController.resendRegistrationOTP);
