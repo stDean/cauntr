@@ -19,6 +19,14 @@ router
 	.patch([AuthMiddleware, AdminMiddleware], UserCtrl.updateUserRole);
 
 router
+	.route("/updateAcct")
+	.patch([AuthMiddleware, AdminMiddleware], UserCtrl.updateCompanyAccount);
+
+router
+	.route("/getAcct")
+	.get([AuthMiddleware, AdminMiddleware], UserCtrl.getCompanyAccount);
+
+router
 	.route("/:id")
 	.get(AuthMiddleware, UserCtrl.getUser)
 	.patch(AuthMiddleware, UserCtrl.updateUserProfile)

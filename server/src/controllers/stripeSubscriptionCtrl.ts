@@ -1,7 +1,7 @@
 import { BillingType, Tier } from "@prisma/client";
 import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
-import { TierNames } from "../data/subTier";
+import { getTierByPriceId, TierNames } from "../data/subTier";
 import { BadRequestError, NotFoundError } from "../errors";
 import { StripeService } from "../services/stripeService";
 import { prisma } from "../utils/prisma.h";
@@ -124,9 +124,7 @@ export const StripeCtrl = {
 
 		const billingHistory: BillingHistory[] = invoices.invoices.data.map(
 			invoice => {
-				const plan = StripeService.getTierByPriceId(
-					invoice.lines.data[0].plan!.id
-				);
+				const plan = getTierByPriceId(invoice.lines.data[0].plan!.id);
 
 				const statusMap: Record<Stripe.Invoice.Status, string> = {
 					draft: "Pending",

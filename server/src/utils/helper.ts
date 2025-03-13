@@ -63,7 +63,12 @@ export const userNdCompany = async ({
 }) => {
 	const company = await prisma.company.findUnique({
 		where: { company_email: email, id: companyId },
-		select: { tenantId: true, id: true },
+		select: {
+			tenantId: true,
+			id: true,
+			company_email: true,
+			CompanyAccount: { select: { id: true } },
+		},
 	});
 
 	if (!company) {

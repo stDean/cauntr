@@ -25,6 +25,86 @@ export const getUserHelper = async ({
 	return { user };
 };
 
+const getCustomerAndDebtorTransaction = async ({
+	companyId,
+	tenantId,
+	id,
+}: {
+	companyId: string;
+	tenantId: string;
+	id: string;
+}) => {
+	const transactions = await prisma.transaction.findMany({
+		where: {
+			companyId,
+			tenantId,
+			customerId: id,
+		},
+		select: {
+			id: true,
+			type: true,
+			Customer: {
+				select: { name: true, email: true, phone: true, address: true },
+			},
+			TransactionItem: {
+				select: {
+          id: true,
+					quantity: true,
+					pricePerUnit: true,
+					totalPrice: true,
+					Product: {
+						select: {
+							productName: true,
+							sku: true,
+							serialNo: true,
+						},
+					},
+				},
+			},
+			Payments: {
+				select: {
+					payments: {
+						select: { method: true, paymentDate: true, balanceOwed: true },
+					},
+				},
+			},
+		},
+	});
+
+	let data;
+
+	// If no transactions were found, return an empty result.
+	if (transactions.length === 0) {
+		data = { customerData: [], products: [] };
+		return { data };
+	}
+
+	const customerData = transactions[0].Customer;
+
+	// Build a products array by flattening each transaction's TransactionItem array.
+	const products = transactions.flatMap(transaction => {
+		// If payments exist, take the first payment's info; otherwise, fallback to transaction.createdAt.
+		const payment = transaction.Payments?.[0]?.payments?.[0] || null;
+		return transaction.TransactionItem.map(item => ({
+			productName: item.Product.productName,
+			serialNo: item.Product.serialNo,
+			sku: item.Product.sku,
+			quantity: item.quantity,
+			paymentMethod: payment ? payment.method : null,
+			purchaseDate: payment ? payment.paymentDate : null,
+			totalPrice: item.totalPrice,
+			pricePerUnit: item.pricePerUnit,
+			transactionType: transaction.type,
+			balanceOwed: payment?.balanceOwed ? payment?.balanceOwed : null,
+			itemId: item.id,
+		}));
+	});
+
+	data = { customerData, products };
+
+	return { data };
+};
+
 export const UserCtrl = {
 	/**
 	 * Create a new user.
@@ -84,10 +164,22 @@ export const UserCtrl = {
 			where: { tenantId: company.tenantId, companyId: company.id },
 		});
 
+		const returnedUsers = users.map(user => {
+			return {
+				id: user.id,
+				email: user.email,
+				firstName: user.first_name,
+				lastName: user.last_name,
+				role: user.role,
+				phone: user.phone,
+				createdAt: user.createdAt,
+			};
+		});
+
 		res.status(StatusCodes.OK).json({
 			success: true,
-			data: users,
-			nbHits: users.length,
+			data: returnedUsers,
+			nbHits: returnedUsers.length,
 		});
 	},
 
@@ -100,7 +192,15 @@ export const UserCtrl = {
 	getUser: async (req: Request, res: Response) => {
 		const { company } = await userNdCompany(req.user);
 		const { user } = await getUserHelper({ id: req.params.id, company });
-		res.status(StatusCodes.OK).json({ success: true, data: user });
+		const returnedUser = {
+			id: user.id,
+			email: user.email,
+			firstName: user.first_name,
+			lastName: user.last_name,
+			role: user.role,
+			phone: user.phone,
+		};
+		res.status(StatusCodes.OK).json({ success: true, data: returnedUser });
 	},
 
 	/**
@@ -124,37 +224,10 @@ export const UserCtrl = {
 			req.body.password = user.password;
 		}
 
-		// Destructure bankDetails out of the request body; remaining fields go into updateData
-		const { bankDetails, ...updateData } = req.body;
-
 		// Use a database transaction to update both bank details and user record atomically
-		const updateUser = await prisma.$transaction(async prisma => {
-			// If bankDetails is provided and is a non-empty array, create bank records
-			if (Array.isArray(bankDetails) && bankDetails.length > 0) {
-				await Promise.all(
-					bankDetails.map(
-						async (value: { bankName: string; acctNo: string }) => {
-							await prisma.userBank.create({
-								data: {
-									bankName: value.bankName,
-									acctNo: value.acctNo,
-									userId: user.id,
-								},
-							});
-						}
-					)
-				);
-			}
-
-			// Update the user record with the remaining update data
-			return await prisma.user.update({
-				where: {
-					id: user.id,
-					tenantId: company.tenantId,
-					companyId: company.id,
-				},
-				data: updateData,
-			});
+		const updateUser = await prisma.user.update({
+			where: { id: user.id, tenantId: company.tenantId, companyId: company.id },
+			data: req.body,
 		});
 
 		res.status(StatusCodes.OK).json({
@@ -207,6 +280,74 @@ export const UserCtrl = {
 		res
 			.status(StatusCodes.OK)
 			.json({ msg: "User deleted successfully", success: true });
+	},
+
+	// ===========================================================================
+	// COMPANY ACCOUNT OPERATIONS
+	// ===========================================================================
+	getCompanyAccount: async (req: Request, res: Response) => {
+		const { company } = await userNdCompany(req.user);
+
+		const companyAccount = await prisma.companyAccount.findUnique({
+			where: { businessEmail: company.company_email },
+			select: {
+				banks: { select: { bankName: true, acctNo: true } },
+				businessEmail: true,
+				businessName: true,
+				businessAddress: true,
+				phoneNumber: true,
+				category: true,
+				taxID: true,
+			},
+		});
+		if (!companyAccount) throw new NotFoundError("Company account not found.");
+
+		res.status(StatusCodes.OK).json({
+			msg: "Company account found.",
+			success: true,
+			data: companyAccount,
+		});
+	},
+
+	updateCompanyAccount: async (req: Request, res: Response) => {
+		const { company } = await userNdCompany(req.user);
+		const { bankDetails, ...updateData } = req.body;
+
+		const updatedCompany = await prisma.$transaction(async prisma => {
+			// If bankDetails is provided and is a non-empty array, create bank records
+			if (Array.isArray(bankDetails) && bankDetails.length > 0) {
+				await Promise.all(
+					bankDetails.map(
+						async (value: {
+							bankName: string;
+							acctNo: string;
+							acctName: string;
+						}) => {
+							await prisma.userBank.create({
+								data: {
+									bankName: value.bankName,
+									acctNo: value.acctNo,
+									acctName: value.acctName,
+									companyAccountId: company.CompanyAccount!.id,
+								},
+							});
+						}
+					)
+				);
+			}
+
+			// Update the user record with the remaining update data
+			return await prisma.companyAccount.update({
+				where: { businessEmail: company.company_email },
+				data: updateData,
+			});
+		});
+
+		res.status(StatusCodes.OK).json({
+			msg: "Company account updated successfully",
+			success: true,
+			data: updatedCompany,
+		});
 	},
 
 	// ===========================================================================
@@ -277,15 +418,54 @@ export const UserCtrl = {
 				select: { Customer: true },
 			});
 
-		// Combine both customer lists
-		const customers = [
-			...createdCustomers,
-			...customerWithPaymentPlanTypeCustomer.map(c => c.Customer),
-		];
+		// Collect unique customers
+		const uniqueCustomers = new Map<string, any>();
 
-		res
-			.status(StatusCodes.OK)
-			.json({ success: true, data: customers, nbHits: customers.length });
+		// Add created customers (no transactions)
+		createdCustomers.forEach(customer => {
+			if (customer) uniqueCustomers.set(customer.id, customer);
+		});
+
+		// Add customers from payment plans
+		customerWithPaymentPlanTypeCustomer.forEach(c => {
+			if (c.Customer) uniqueCustomers.set(c.Customer.id, c.Customer);
+		});
+
+		// Extract unique customer IDs
+		const customerIds = Array.from(uniqueCustomers.keys());
+
+		// Get transaction count for each unique customer
+		const transactions = await prisma.transaction.groupBy({
+			by: ["customerId"],
+			where: {
+				tenantId: company.tenantId,
+				companyId: company.id,
+				customerId: { in: customerIds },
+			},
+			_count: { _all: true },
+		});
+
+		// Map transaction counts for quick lookup
+		const transactionCounts = new Map(
+			transactions.map(t => [t.customerId, t._count._all])
+		);
+
+		// Format response
+		const returnedData = {
+			customer: Array.from(uniqueCustomers.values()).map(customer => ({
+				id: customer.id,
+				name: customer.name,
+				email: customer.email,
+				phone: customer.phone,
+				transactionCount: transactionCounts.get(customer.id) || 0,
+			})),
+		};
+
+		res.status(StatusCodes.OK).json({
+			success: true,
+			data: returnedData,
+			nbHits: returnedData.customer.length,
+		});
 	},
 
 	/**
@@ -298,50 +478,13 @@ export const UserCtrl = {
 		const { company } = await userNdCompany(req.user);
 		if (!company) throw new BadRequestError("Company not found.");
 
-		const customer = await prisma.paymentPlan.findFirst({
-			where: { customerType: CustomerType.CUSTOMER, customerId: req.params.id },
-			select: {
-				Customer: {
-					select: { name: true, phone: true },
-				},
-				Transaction: {
-					select: {
-						type: true,
-						TransactionItem: {
-							select: {
-								Product: {
-									select: {
-										productName: true,
-										sku: true,
-										serialNo: true,
-										brand: true,
-										productType: true,
-									},
-								},
-								quantity: true,
-								pricePerUnit: true,
-								totalPrice: true,
-							},
-						},
-					},
-				},
-				payments: {
-					select: {
-						balanceOwed: true,
-						method: true,
-						paymentDate: true,
-					},
-				},
-			},
+		const { data } = await getCustomerAndDebtorTransaction({
+			companyId: company.id,
+			tenantId: company.tenantId,
+			id: req.params.id,
 		});
 
-		if (!customer) throw new BadRequestError("Customer not found.");
-
-		res.status(StatusCodes.OK).json({
-			msg: "Customer successfully found.",
-			success: true,
-			data: customer,
-		});
+		res.status(StatusCodes.OK).json({ success: true, data });
 	},
 
 	/**
@@ -400,14 +543,28 @@ export const UserCtrl = {
 		const customerWithPaymentPlanTypeCustomer =
 			await prisma.paymentPlan.findMany({
 				where: { customerType: CustomerType.DEBTOR },
-				select: { Customer: true },
+				select: { Customer: { include: { Transaction: true } } },
 			});
 
 		const customers = customerWithPaymentPlanTypeCustomer.map(c => c.Customer);
 
-		res
-			.status(StatusCodes.OK)
-			.json({ success: true, data: customers, nbHits: customers.length });
+		// i want
+		// const returnedData = [{ name, email, phone, lastPaidDate, count }];
+		const returnedData = customers.map(customer => {
+			return {
+				id: customer!.id,
+				name: customer!.name,
+				email: customer!.email,
+				phone: customer!.phone,
+				transactionCount: customer!.Transaction.length,
+			};
+		});
+
+		res.status(StatusCodes.OK).json({
+			success: true,
+			data: returnedData,
+			nbHits: customers.length,
+		});
 	},
 
 	/**
@@ -420,50 +577,13 @@ export const UserCtrl = {
 		const { company } = await userNdCompany(req.user);
 		if (!company) throw new BadRequestError("Company not found.");
 
-		const customer = await prisma.paymentPlan.findFirst({
-			where: { customerType: CustomerType.DEBTOR, customerId: req.params.id },
-			select: {
-				Customer: {
-					select: { name: true, phone: true },
-				},
-				Transaction: {
-					select: {
-						type: true,
-						TransactionItem: {
-							select: {
-								Product: {
-									select: {
-										productName: true,
-										sku: true,
-										serialNo: true,
-										brand: true,
-										productType: true,
-									},
-								},
-								quantity: true,
-								pricePerUnit: true,
-								totalPrice: true,
-							},
-						},
-					},
-				},
-				payments: {
-					select: {
-						balanceOwed: true,
-						method: true,
-						paymentDate: true,
-					},
-				},
-			},
+		const { data } = await getCustomerAndDebtorTransaction({
+			companyId: company.id,
+			tenantId: company.tenantId,
+			id: req.params.id,
 		});
 
-		if (!customer) throw new BadRequestError("Customer not found.");
-
-		res.status(StatusCodes.OK).json({
-			msg: "Customer successfully found.",
-			success: true,
-			data: customer,
-		});
+		res.status(StatusCodes.OK).json({ success: true, data });
 	},
 
 	// ===========================================================================
@@ -522,13 +642,28 @@ export const UserCtrl = {
 				tenantId: company.tenantId,
 				companyId: company.id,
 			},
+			include: { products: { select: { quantity: true } } },
+		});
+
+		const returnedSupplier = suppliers.map(supplier => {
+			return {
+				id: supplier.id,
+				name: supplier.name,
+				contact: supplier.contact,
+				email: supplier.email,
+				createdAt: supplier.createdAt,
+				supplyCount: supplier.products.reduce(
+					(acc, product) => acc + product.quantity,
+					0
+				),
+			};
 		});
 
 		res.status(StatusCodes.CREATED).json({
 			msg: "All suppliers found.",
 			success: true,
-			data: suppliers,
-			nbHits: suppliers.length,
+			data: returnedSupplier,
+			nbHits: returnedSupplier.length,
 		});
 	},
 
@@ -548,10 +683,37 @@ export const UserCtrl = {
 				tenantId: company.tenantId,
 				companyId: company.id,
 			},
+			include: {
+				products: {
+					select: {
+						productName: true,
+						sellingPrice: true,
+						createdAt: true,
+						quantity: true,
+					},
+				},
+			},
 		});
 		if (!supplier) throw new NotFoundError("Supplier not found.");
 
-		res.status(StatusCodes.CREATED).json({ data: supplier, success: true });
+		const returnedData = {
+			id: supplier.id,
+			name: supplier.name,
+			contact: supplier.contact,
+			email: supplier.email,
+			supplyCount: supplier.products.reduce(
+				(acc, product) => acc + product.quantity,
+				0
+			),
+			products: supplier.products.map(({ sellingPrice, ...product }) => {
+				return {
+					...product,
+					pricePerUnit: sellingPrice,
+				};
+			}),
+		};
+
+		res.status(StatusCodes.CREATED).json({ data: returnedData, success: true });
 	},
 
 	/**

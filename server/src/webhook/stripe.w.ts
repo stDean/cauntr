@@ -3,6 +3,7 @@ import { prisma } from "../utils/prisma.h";
 import Stripe from "stripe";
 import { BadRequestError, CustomAPIError } from "../errors";
 import { getTierByPriceId } from "../data/subTier";
+import { BillingType, Tier } from "@prisma/client";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
 	apiVersion: "2025-02-24.acacia",
@@ -114,7 +115,7 @@ const handleCharge = async (charge: Stripe.Charge) => {
 	});
 };
 
-const handleCancelUpdate = async (subscription: Stripe.Subscription) => {
+const handleCancelOrUpdate = async (subscription: Stripe.Subscription) => {
 	if (subscription.cancel_at !== null) {
 		return await prisma.company.update({
 			where: {
@@ -122,12 +123,47 @@ const handleCancelUpdate = async (subscription: Stripe.Subscription) => {
 				tenantId: subscription.metadata.tenantId,
 			},
 			data: {
-				scheduledDeactivation: new Date(
-					subscription.cancel_at * 1000
-				).toISOString(),
+				canCancel: false,
+				canUpdate: true,
+				subscriptionStatus: "CANCELLED",
+				CompanyStripeSubscription: {
+					update: {
+						startDate: null,
+						endDate: null,
+						stripeSubscriptionID: null,
+						stripeSubscriptionItemId: null,
+						tier: "FREE",
+						tierType: "MONTHLY",
+					},
+				},
 			},
 		});
 	}
+
+	const tier = getTierByPriceId(subscription.items.data[0].price.id);
+	const customer = subscription.customer;
+	const customerId = typeof customer === "string" ? customer : customer.id;
+
+	if (tier == null) throw new BadRequestError("Tier not found");
+  
+	const splitTier = tier.name.split("(");
+	const tierName = splitTier[0].toUpperCase();
+	const tierType = splitTier[1].split(")")[0].toUpperCase();
+
+	return await prisma.companyStripeSubscription.update({
+		where: { stripeCustomerID: customerId },
+		data: {
+			stripeSubscriptionID: subscription.id,
+			stripeCustomerID: customerId,
+			stripeSubscriptionItemId: subscription.items.data[0].id,
+			startDate: new Date(
+				subscription.current_period_start * 1000
+			).toISOString(),
+			endDate: new Date(subscription.current_period_end * 1000).toISOString(),
+			tier: tierName as Tier,
+			tierType: tierType as BillingType,
+		},
+	});
 };
 
 const handleFailedPayment = async (invoice: Stripe.Invoice) => {
@@ -210,7 +246,9 @@ router
 						break;
 					case "customer.subscription.updated":
 						// Handle creation of a new subscription
-						await handleCancelUpdate(event.data.object as Stripe.Subscription);
+						await handleCancelOrUpdate(
+							event.data.object as Stripe.Subscription
+						);
 						break;
 					case "invoice.payment_failed":
 						// Handle creation of a new subscription

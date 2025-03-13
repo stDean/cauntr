@@ -582,9 +582,17 @@ export const TransactionsCtrl = {
 
 		const product = await prisma.transactionItem.findUnique({
 			where: { id: req.params.itemId },
-			include: {
-				Product: { include: { Supplier: true } },
-				Transaction: { include: { Customer: true } },
+			select: {
+				Product: {
+					select: {
+						serialNo: true,
+						productName: true,
+						sellingPrice: true,
+						sku: true,
+						// Supplier: true,
+					},
+				},
+				// Transaction: { include: { Customer: true } },
 			},
 		});
 
@@ -677,7 +685,7 @@ export const TransactionsCtrl = {
 		res.status(StatusCodes.OK).json({
 			success: true,
 			msg: "Product balance successfully updated",
-			data: { product, plan },
+			// data: { product, plan },
 		});
 	},
 

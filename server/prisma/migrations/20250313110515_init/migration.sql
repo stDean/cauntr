@@ -25,6 +25,27 @@ CREATE TABLE `Company` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `CompanyAccount` (
+    `id` VARCHAR(191) NOT NULL,
+    `tenantId` VARCHAR(191) NOT NULL,
+    `businessName` VARCHAR(191) NOT NULL,
+    `businessEmail` VARCHAR(191) NOT NULL,
+    `category` VARCHAR(191) NULL,
+    `phoneNumber` VARCHAR(191) NULL,
+    `businessAddress` VARCHAR(191) NULL,
+    `taxID` VARCHAR(191) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `companyId` VARCHAR(191) NOT NULL,
+
+    UNIQUE INDEX `CompanyAccount_businessEmail_key`(`businessEmail`),
+    UNIQUE INDEX `CompanyAccount_companyId_key`(`companyId`),
+    INDEX `CompanyAccount_id_idx`(`id`),
+    INDEX `CompanyAccount_tenantId_idx`(`tenantId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `CompanySubscription` (
     `id` VARCHAR(191) NOT NULL,
     `tenantId` VARCHAR(191) NOT NULL,
@@ -112,6 +133,7 @@ CREATE TABLE `User` (
     `last_name` VARCHAR(191) NULL,
     `email` VARCHAR(191) NOT NULL,
     `password` VARCHAR(191) NOT NULL,
+    `phone` VARCHAR(191) NULL,
     `role` ENUM('EMPLOYEE', 'ADMIN') NOT NULL DEFAULT 'EMPLOYEE',
     `companyId` VARCHAR(191) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -119,6 +141,7 @@ CREATE TABLE `User` (
     `deletedAt` DATETIME(3) NULL,
 
     UNIQUE INDEX `User_email_key`(`email`),
+    UNIQUE INDEX `User_phone_key`(`phone`),
     INDEX `User_id_idx`(`id`),
     INDEX `User_email_idx`(`email`),
     INDEX `User_tenantId_idx`(`tenantId`),
@@ -129,9 +152,10 @@ CREATE TABLE `User` (
 -- CreateTable
 CREATE TABLE `UserBank` (
     `id` VARCHAR(191) NOT NULL,
-    `userId` VARCHAR(191) NOT NULL,
     `bankName` VARCHAR(191) NOT NULL,
     `acctNo` VARCHAR(191) NULL,
+    `acctName` VARCHAR(191) NULL,
+    `companyAccountId` VARCHAR(191) NULL,
 
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -306,6 +330,9 @@ CREATE TABLE `AuditLog` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- AddForeignKey
+ALTER TABLE `CompanyAccount` ADD CONSTRAINT `CompanyAccount_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE `CompanySubscription` ADD CONSTRAINT `CompanySubscription_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -318,7 +345,7 @@ ALTER TABLE `Notification` ADD CONSTRAINT `Notification_companyId_fkey` FOREIGN 
 ALTER TABLE `User` ADD CONSTRAINT `User_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `UserBank` ADD CONSTRAINT `UserBank_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `UserBank` ADD CONSTRAINT `UserBank_companyAccountId_fkey` FOREIGN KEY (`companyAccountId`) REFERENCES `CompanyAccount`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Product` ADD CONSTRAINT `Product_createdById_fkey` FOREIGN KEY (`createdById`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;

@@ -143,10 +143,4 @@ export class StripeService {
 
 		return { invoices };
 	}
-
-	static getTierByPriceId(stripePriceId: string) {
-		return Object.values(subscriptionTiers).find(
-			tier => tier.stripePriceId === stripePriceId
-		);
-	}
 }

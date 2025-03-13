@@ -123,14 +123,7 @@ export const AuthController = {
 	// },
 
 	createCompanyStripe: async (req: Request, res: Response): Promise<void> => {
-		const {
-			company_name,
-			company_email,
-			password,
-			country,
-			billingPlan,
-			billingType,
-		} = req.body;
+		const { company_name, company_email, password, country } = req.body;
 
 		// Hash the password before storing it.
 		const hashedPassword = await argon2.hash(password);
@@ -143,6 +136,15 @@ export const AuthController = {
 				password: hashedPassword,
 				country,
 				subscriptionStatus: "TRIAL",
+			},
+		});
+
+		await prisma.companyAccount.create({
+			data: {
+				companyId: newCompany.id,
+				tenantId: newCompany.tenantId,
+				businessEmail: company_email,
+				businessName: company_name,
 			},
 		});
 
