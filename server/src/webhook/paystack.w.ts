@@ -314,7 +314,7 @@ router
 
 				res.status(statusCode).json({
 					error:
-						error instanceof Error ? error.message : "Internal server error",
+						error instanceof Error ? error.message: "Internal server error",
 				});
 			}
 		}

@@ -166,7 +166,7 @@ export const InventoryCtrl = {
 					);
 					results.push(await prisma.product.create({ data: productData }));
 				} catch (error: any) {
-					errors.push({ index, error: error.message });
+					errors.push({ index, error: error.message});
 				}
 			})
 		);

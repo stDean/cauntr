@@ -23,7 +23,7 @@ export const errorHandlerMiddleware: ErrorRequestHandler = (
 ) => {
 	let customError = {
 		statusCode: err.statusCode || StatusCodes.INTERNAL_SERVER_ERROR,
-		msg: err.message || "Something went wrong. Please try again later",
+		msg: err.message|| "Something went wrong. Please try again later",
 	};
 
 	// Handle Prisma Client Errors
@@ -82,7 +82,7 @@ export const errorHandlerMiddleware: ErrorRequestHandler = (
 	}
 
 	res.status(customError.statusCode).json({
-		msg: customError.msg,
+		message: customError.msg,
 		// Include stack trace in development only
 		...(process.env.NODE_ENV === "development" && { stack: err.stack }),
 	});

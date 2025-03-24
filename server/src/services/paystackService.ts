@@ -142,7 +142,7 @@ export class PayStackService {
 			};
 		} catch (error: any) {
 			return {
-				error: error.message || "Unknown error occurred",
+				error: error.message|| "Unknown error occurred",
 				transaction: null,
 				verify: null,
 			};
@@ -191,7 +191,7 @@ export class PayStackService {
 			};
 		} catch (error: any) {
 			return {
-				error: error.message || "Unknown error occurred",
+				error: error.message|| "Unknown error occurred",
 				subscription: null,
 			};
 		}
@@ -211,13 +211,13 @@ export class PayStackService {
 			})) as RefundTransactionResponse;
 
 			if (refundRes.status === false) {
-				return { error: refundRes.message };
+				return { error: refundRes.message};
 			}
 
 			return { msg: refundRes.message, error: null };
 		} catch (error: any) {
 			return {
-				error: error.message || "Unknown error occurred",
+				error: error.message|| "Unknown error occurred",
 				msg: null,
 			};
 		}
@@ -241,7 +241,7 @@ export class PayStackService {
 			return { success: true, error: null };
 		} catch (error: any) {
 			return {
-				error: error.message || "Unknown error occurred",
+				error: error.message|| "Unknown error occurred",
 				msg: null,
 			};
 		}

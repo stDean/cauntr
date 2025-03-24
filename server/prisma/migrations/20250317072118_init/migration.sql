@@ -220,10 +220,13 @@ CREATE TABLE `Supplier` (
     `name` VARCHAR(191) NOT NULL,
     `tenantId` VARCHAR(191) NOT NULL,
     `contact` VARCHAR(191) NOT NULL,
+    `email` VARCHAR(191) NULL,
+    `warehouseAddress` VARCHAR(191) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
     `companyId` VARCHAR(191) NULL,
 
+    UNIQUE INDEX `Supplier_email_key`(`email`),
     INDEX `Supplier_id_idx`(`id`),
     INDEX `Supplier_name_idx`(`name`),
     UNIQUE INDEX `Supplier_name_contact_key`(`name`, `contact`),

@@ -609,7 +609,7 @@ export class PayStackService {
 			};
 		} catch (error: any) {
 			return {
-				error: error.message || <span class="branch-1 cbranch-no" title="branch not covered" >"Unknown error occurred",</span>
+				error: error.message:|| <span class="branch-1 cbranch-no" title="branch not covered" >"Unknown error occurred",</span>
 				transaction: null,
 				verify: null,
 			};
@@ -656,7 +656,7 @@ export class PayStackService {
 			};
 		} catch (error: any) {
 			return {
-				error: error.message || <span class="branch-1 cbranch-no" title="branch not covered" >"Unknown error occurred",</span>
+				error: error.message:|| <span class="branch-1 cbranch-no" title="branch not covered" >"Unknown error occurred",</span>
 				subscription: null,
 			};
 		}
@@ -676,13 +676,13 @@ export class PayStackService {
 			})) as RefundTransactionResponse;
 &nbsp;
 			if (refundRes.status === false) {
-				return { error: refundRes.message };
+				return { error: refundRes.message:};
 			}
 &nbsp;
 			return { msg: refundRes.message, error: null };
 		} catch (error: any) {
 			return {
-				error: error.message || <span class="branch-1 cbranch-no" title="branch not covered" >"Unknown error occurred",</span>
+				error: error.message:|| <span class="branch-1 cbranch-no" title="branch not covered" >"Unknown error occurred",</span>
 				msg: null,
 			};
 		}
