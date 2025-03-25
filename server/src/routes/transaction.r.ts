@@ -2,7 +2,7 @@ import { Router } from "express";
 import { TransactionsCtrl } from "../controllers/transaction.c";
 import { AdminMiddleware } from "../middleware/admin.m";
 import { AuthMiddleware } from "../middleware/auth.m";
-import { SubscriptionMiddleware } from "../middleware/action.m";
+import { CheckActiveSubscription } from "../middleware/action.m";
 
 const router = Router();
 
@@ -15,16 +15,22 @@ router
 
 router
   .route("/products/:sku/sell")
-  .post([AuthMiddleware, SubscriptionMiddleware], TransactionsCtrl.sellProduct);
+  .post(
+    [AuthMiddleware, CheckActiveSubscription],
+    TransactionsCtrl.sellProduct
+  );
 router
   .route("/products/bulkSell")
   .post(
-    [AuthMiddleware, SubscriptionMiddleware],
+    [AuthMiddleware, CheckActiveSubscription],
     TransactionsCtrl.sellProducts
   );
 router
   .route("/products/:sku/swap")
-  .post([AuthMiddleware, SubscriptionMiddleware], TransactionsCtrl.swapProduct);
+  .post(
+    [AuthMiddleware, CheckActiveSubscription],
+    TransactionsCtrl.swapProduct
+  );
 
 router
   .route("/products/:transactionId/sold")
@@ -40,14 +46,14 @@ router
 router
   .route("/products/:itemId/updatePrice")
   .patch(
-    [AuthMiddleware, AdminMiddleware, SubscriptionMiddleware],
+    [AuthMiddleware, AdminMiddleware, CheckActiveSubscription],
     TransactionsCtrl.updateProductBalance
   );
 
 router
   .route("/products/:itemId/updateSoldPrice")
   .patch(
-    [AuthMiddleware, AdminMiddleware, SubscriptionMiddleware],
+    [AuthMiddleware, AdminMiddleware, CheckActiveSubscription],
     TransactionsCtrl.updateSoldPrice
   );
 

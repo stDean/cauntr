@@ -442,7 +442,6 @@ export const AuthController = {
       message: "User logged in successfully.",
       success: true,
       token: jwtToken,
-      role: user.role,
     });
   },
 

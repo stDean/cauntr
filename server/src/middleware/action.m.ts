@@ -36,13 +36,30 @@ export const SubscriptionMiddleware = async (
     );
   }
 
-  if (adminUser?.role === "ADMIN") {
-    if (company?.subscriptionStatus === "ACTIVE") {
-      next();
-    } else {
-      throw new BadRequestError(
-        "Your subscription is not currently active. Please renew your subscription to access this feature."
-      );
-    }
+  next();
+};
+
+export const CheckActiveSubscription = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  if (!req.user) throw new UnauthenticatedError("User information is missing.");
+
+  const { companyId } = req.user;
+
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { subscriptionStatus: true },
+  });
+  if (!company) throw new NotFoundError("User not found");
+
+  if (company.subscriptionStatus !== "ACTIVE") {
+    throw new CustomAPIError(
+      "Company subscription is not active.",
+      StatusCodes.BAD_REQUEST
+    );
   }
+
+  next();
 };

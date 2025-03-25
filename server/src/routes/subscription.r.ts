@@ -3,6 +3,7 @@ import { SubscriptionCtrl } from "../controllers/subscription.c";
 import { AuthMiddleware } from "../middleware/auth.m";
 import { AdminMiddleware } from "../middleware/admin.m";
 import { StripeCtrl } from "../controllers/stripeSubscriptionCtrl";
+import { SubscriptionMiddleware } from "../middleware/action.m";
 
 const router = Router();
 
@@ -21,15 +22,27 @@ router
 
 router
   .route("/create")
-  .post([AuthMiddleware, AdminMiddleware], StripeCtrl.createSubscription);
+  .post(
+    [AuthMiddleware, AdminMiddleware, SubscriptionMiddleware],
+    StripeCtrl.createSubscription
+  );
 router
   .route("/cancel/stripe")
-  .post([AuthMiddleware, AdminMiddleware], StripeCtrl.cancelStripeSubscription);
+  .post(
+    [AuthMiddleware, AdminMiddleware, SubscriptionMiddleware],
+    StripeCtrl.cancelStripeSubscription
+  );
 router
   .route("/manage")
-  .post([AuthMiddleware, AdminMiddleware], StripeCtrl.manageStripeSubscription);
+  .post(
+    [AuthMiddleware, AdminMiddleware, SubscriptionMiddleware],
+    StripeCtrl.manageStripeSubscription
+  );
 router
   .route("/history")
-  .get([AuthMiddleware, AdminMiddleware], StripeCtrl.getSubDetails);
+  .get(
+    [AuthMiddleware, AdminMiddleware, SubscriptionMiddleware],
+    StripeCtrl.getSubDetails
+  );
 
 export default router;

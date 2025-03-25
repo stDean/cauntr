@@ -2,7 +2,7 @@ import { Router } from "express";
 import { AuthMiddleware } from "../middleware/auth.m";
 import { AdminMiddleware } from "../middleware/admin.m";
 import { UserCtrl } from "../controllers/users.c";
-import { SubscriptionMiddleware } from "../middleware/action.m";
+import { CheckActiveSubscription } from "../middleware/action.m";
 
 const router = Router();
 
@@ -12,7 +12,7 @@ const router = Router();
 router
   .route("/create")
   .post(
-    [AuthMiddleware, AdminMiddleware, SubscriptionMiddleware],
+    [AuthMiddleware, AdminMiddleware, CheckActiveSubscription],
     UserCtrl.createUser
   );
 
@@ -21,14 +21,14 @@ router.route("/all").get([AuthMiddleware, AdminMiddleware], UserCtrl.getUsers);
 router
   .route("/:id/updateRole")
   .patch(
-    [AuthMiddleware, AdminMiddleware, SubscriptionMiddleware],
+    [AuthMiddleware, AdminMiddleware, CheckActiveSubscription],
     UserCtrl.updateUserRole
   );
 
 router
   .route("/updateAcct")
   .patch(
-    [AuthMiddleware, AdminMiddleware, SubscriptionMiddleware],
+    [AuthMiddleware, AdminMiddleware, CheckActiveSubscription],
     UserCtrl.updateCompanyAccount
   );
 
@@ -36,12 +36,13 @@ router
   .route("/getAcct")
   .get([AuthMiddleware, AdminMiddleware], UserCtrl.getCompanyAccount);
 
+router.route("/user").get(AuthMiddleware, UserCtrl.getUser);
+
 router
   .route("/:id")
-  .get(AuthMiddleware, UserCtrl.getUser)
-  .patch([AuthMiddleware, SubscriptionMiddleware], UserCtrl.updateUserProfile)
+  .patch([AuthMiddleware, CheckActiveSubscription], UserCtrl.updateUserProfile)
   .delete(
-    [AuthMiddleware, AdminMiddleware, SubscriptionMiddleware],
+    [AuthMiddleware, AdminMiddleware, CheckActiveSubscription],
     UserCtrl.deleteUser
   );
 
@@ -51,7 +52,7 @@ router
 router
   .route("/customers/create")
   .post(
-    [AuthMiddleware, AdminMiddleware, SubscriptionMiddleware],
+    [AuthMiddleware, AdminMiddleware, CheckActiveSubscription],
     UserCtrl.createCustomer
   );
 
@@ -61,7 +62,7 @@ router
   .route("/customers/:id")
   .get([AuthMiddleware, AdminMiddleware], UserCtrl.getCustomer)
   .patch(
-    [AuthMiddleware, AdminMiddleware, SubscriptionMiddleware],
+    [AuthMiddleware, AdminMiddleware, CheckActiveSubscription],
     UserCtrl.updateCustomer
   );
 
@@ -80,7 +81,7 @@ router
 router
   .route("/suppliers/create")
   .post(
-    [AuthMiddleware, AdminMiddleware, SubscriptionMiddleware],
+    [AuthMiddleware, AdminMiddleware, CheckActiveSubscription],
     UserCtrl.createSupplier
   );
 
@@ -90,11 +91,11 @@ router
   .route("/suppliers/:id")
   .get([AuthMiddleware, AdminMiddleware], UserCtrl.getSupplier)
   .patch(
-    [AuthMiddleware, AdminMiddleware, SubscriptionMiddleware],
+    [AuthMiddleware, AdminMiddleware, CheckActiveSubscription],
     UserCtrl.updateSupplier
   )
   .delete(
-    [AuthMiddleware, AdminMiddleware, SubscriptionMiddleware],
+    [AuthMiddleware, AdminMiddleware, CheckActiveSubscription],
     UserCtrl.deleteSupplier
   );
 
