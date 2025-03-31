@@ -298,7 +298,7 @@ export const UserCtrl = {
     const companyAccount = await prisma.companyAccount.findUnique({
       where: { businessEmail: company.company_email },
       select: {
-        banks: { select: { bankName: true, acctNo: true } },
+        banks: { select: { bankName: true, acctNo: true, id: true } },
         businessEmail: true,
         businessName: true,
         businessAddress: true,
@@ -354,6 +354,24 @@ export const UserCtrl = {
       msg: "Company account updated successfully",
       success: true,
       data: updatedCompany,
+    });
+  },
+
+  removeCompanyBank: async (req: Request, res: Response) => {
+    const { company } = await userNdCompany(req.user);
+    const { id: bankId } = req.params;
+
+    // Delete the specified bank record
+    await prisma.userBank.delete({
+      where: {
+        id: bankId,
+        companyAccountId: company.CompanyAccount!.id,
+      },
+    });
+
+    res.status(StatusCodes.OK).json({
+      msg: "Bank removed successfully",
+      success: true,
     });
   },
 

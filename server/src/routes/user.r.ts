@@ -36,6 +36,13 @@ router
   .route("/getAcct")
   .get([AuthMiddleware, AdminMiddleware], UserCtrl.getCompanyAccount);
 
+router
+  .route("/removeBank/:id")
+  .delete(
+    [AuthMiddleware, AdminMiddleware, CheckActiveSubscription],
+    UserCtrl.removeCompanyBank
+  );
+
 router.route("/user").get(AuthMiddleware, UserCtrl.getUser);
 
 router
