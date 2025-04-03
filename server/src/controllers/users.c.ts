@@ -191,8 +191,9 @@ export const UserCtrl = {
    * - Return the found user.
    */
   getUser: async (req: Request, res: Response) => {
-    const { company, user: authUser } = await userNdCompany(req.user);
-    const { user } = await getUserHelper({ id: authUser.id, company });
+    const { company } = await userNdCompany(req.user);
+    const { id } = req.params;
+    const { user } = await getUserHelper({ id: id, company });
     const returnedUser = {
       id: user.id,
       email: user.email,
@@ -200,12 +201,12 @@ export const UserCtrl = {
       lastName: user.last_name,
       role: user.role,
       phone: user.phone,
-      Company: {
-        companyId: user.Company?.id,
-        name: user.Company?.company_name,
-        email: user.Company?.company_email,
-        status: user.Company?.subscriptionStatus,
-      },
+      // Company: {
+      //   companyId: user.Company?.id,
+      //   name: user.Company?.company_name,
+      //   email: user.Company?.company_email,
+      //   status: user.Company?.subscriptionStatus,
+      // },
     };
     res.status(StatusCodes.OK).json({ success: true, data: returnedUser });
   },
@@ -232,7 +233,7 @@ export const UserCtrl = {
     }
 
     // Use a database transaction to update both bank details and user record atomically
-    const updateUser = await prisma.user.update({
+    const updatedUser = await prisma.user.update({
       where: { id: user.id, tenantId: company.tenantId, companyId: company.id },
       data: req.body,
     });
@@ -240,7 +241,14 @@ export const UserCtrl = {
     res.status(StatusCodes.OK).json({
       msg: "Profile updated successfully",
       success: true,
-      data: updateUser,
+      data: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        firstName: updatedUser.first_name,
+        lastName: updatedUser.last_name,
+        role: updatedUser.role,
+        phone: updatedUser.phone,
+      },
     });
   },
 

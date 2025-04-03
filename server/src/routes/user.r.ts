@@ -43,10 +43,9 @@ router
     UserCtrl.removeCompanyBank
   );
 
-router.route("/user").get(AuthMiddleware, UserCtrl.getUser);
-
 router
   .route("/:id")
+  .get(AuthMiddleware, UserCtrl.getUser)
   .patch([AuthMiddleware, CheckActiveSubscription], UserCtrl.updateUserProfile)
   .delete(
     [AuthMiddleware, AdminMiddleware, CheckActiveSubscription],
