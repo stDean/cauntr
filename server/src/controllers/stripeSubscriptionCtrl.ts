@@ -9,8 +9,8 @@ import Stripe from "stripe";
 
 interface BillingHistory {
   planName: string;
-  startDate: string;
-  endDate: string;
+  startDate: Date;
+  endDate: Date;
   amount: number;
   status: Stripe.Invoice.Status | string;
 }
@@ -29,6 +29,8 @@ const checkSub = async (companyId: string) => {
       stripeCustomerID: true,
       stripeSubscriptionID: true,
       stripeSubscriptionItemId: true,
+      startDate: true,
+      endDate: true,
     },
   });
 
@@ -116,7 +118,7 @@ export const StripeCtrl = {
         card_type: true,
         exp_month: true,
         exp_year: true,
-        company: { select: { company_email: true } },
+        company: { select: { company_email: true, subscriptionStatus: true } },
       },
     });
 
@@ -147,8 +149,8 @@ export const StripeCtrl = {
 
       return {
         planName: planNames.join(", ") || "Multiple Plans",
-        startDate: new Date(invoice.period_start * 1000).toISOString(),
-        endDate: new Date(invoice.period_end * 1000).toISOString(),
+        startDate:new Date(companySubscription.startDate!),
+        endDate: new Date(companySubscription.endDate!),
         amount: totalAmount / 100, // Convert cents to naira
         status: statusMap[invoice.status!] ?? "Unknown",
       };

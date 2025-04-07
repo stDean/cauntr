@@ -33,8 +33,8 @@ export class StripeService {
           quantity: 1,
         },
       ],
-      success_url: `${process.env.STRIPE_REDIRECT_SUCCESS_URL}/settings/billing`,
-      cancel_url: `${process.env.STRIPE_REDIRECT_CANCEL_URL}/settings/billing`,
+      success_url: `${process.env.STRIPE_REDIRECT_SUCCESS_URL}/settings?q=billing`,
+      cancel_url: `${process.env.STRIPE_REDIRECT_CANCEL_URL}/settings?q=billing`,
     } as Stripe.Checkout.SessionCreateParams);
 
     return session.url;
@@ -58,7 +58,7 @@ export class StripeService {
 
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: subscription.stripeCustomerID,
-      return_url: `${process.env.STRIPE_REDIRECT_SUCCESS_URL}/settings/billing`,
+      return_url: `${process.env.STRIPE_REDIRECT_SUCCESS_URL}/settings?q=billing`,
       flow_data: {
         type: "subscription_update_confirm",
         subscription_update_confirm: {
@@ -111,7 +111,7 @@ export class StripeService {
   }) {
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: subscription.stripeCustomerID,
-      return_url: `${process.env.STRIPE_REDIRECT_SUCCESS_URL}/settings/billing`,
+      return_url: `${process.env.STRIPE_REDIRECT_SUCCESS_URL}/settings?q=billing`,
     });
 
     return portalSession.url;
@@ -124,7 +124,7 @@ export class StripeService {
     // Create a billing portal session specifically for canceling a subscription.
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: subscription.stripeCustomerID,
-      return_url: `${process.env.STRIPE_REDIRECT_SUCCESS_URL}/settings/billing`,
+      return_url: `${process.env.STRIPE_REDIRECT_SUCCESS_URL}/settings?q=billing`,
       flow_data: {
         type: "subscription_cancel",
         subscription_cancel: {
@@ -138,11 +138,14 @@ export class StripeService {
 
   static async getAllCustomerInvoices(customerId: string) {
     const invoices = await stripe.invoices.list({ customer: customerId });
+    const subs = await stripe.subscriptions.list({
+      customer: customerId,
+    });
 
     if (!invoices) {
       throw new BadRequestError("Error getting invoices");
     }
 
-    return { invoices };
+    return { invoices, subs };
   }
 }
