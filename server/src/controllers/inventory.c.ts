@@ -209,7 +209,7 @@ export const InventoryCtrl = {
 				const inventoryValue = (group._sum.quantity || 0) * avgSellingPrice;
 
 				return {
-					categories: group._count._all,
+					// categories: group._count._all,
 					stockCount: group._sum.quantity,
 					productType: group.productType,
 					brand: group.brand,
