@@ -196,7 +196,7 @@ export const InventoryCtrl = {
         tenantId: company.tenantId,
         quantity: { gt: 0 },
       },
-      by: ["productType", "brand"],
+      by: ["productType", "brand", "productName"],
       _count: { _all: true },
       _sum: { quantity: true, sellingPrice: true },
     });
@@ -213,6 +213,7 @@ export const InventoryCtrl = {
 
         return {
           // categories: group._count._all,
+          productName: group.productName,
           stockCount: group._sum.quantity,
           productType: group.productType,
           brand: group.brand,
@@ -230,9 +231,11 @@ export const InventoryCtrl = {
    * Retrieve products filtered by a given product type and brand.
    */
   getProductsByTypeAndBrand: async (req: Request, res: Response) => {
-    const { type, brand } = req.params;
+    const { type, brand, name } = req.params;
     const { email, companyId } = req.user;
     const { company } = await userNdCompany({ email, companyId });
+
+    console.log({ ...req.params });
 
     // Fetch products matching the specified type and brand.
     const products = await prisma.product.findMany({
@@ -241,6 +244,7 @@ export const InventoryCtrl = {
         tenantId: company.tenantId,
         productType: type,
         brand,
+        productName: name,
       },
     });
 
@@ -248,11 +252,21 @@ export const InventoryCtrl = {
       throw new NotFoundError("No products found");
     }
 
+    
     const allProduct = products.filter((p) => p.quantity !== 0);
+    const returnedData = allProduct.map(p => ({
+      productName: p.productName,
+      brand: p.brand,
+      type: p.productType,
+      quantity: p.quantity,
+      sellingPrice: p.sellingPrice,
+      sku: p.sku,
+      serialNo: p.serialNo
+    }))
 
     res.status(StatusCodes.OK).json({
       success: true,
-      data: allProduct,
+      data: returnedData,
     });
   },
 

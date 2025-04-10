@@ -21,7 +21,7 @@ router
   .route("/products/summary")
   .get(AuthMiddleware, InventoryCtrl.getProductCountsByTypeAndBrand);
 router
-  .route("/related/:type/:brand")
+  .route("/related/:type/:brand/:name")
   .get(AuthMiddleware, InventoryCtrl.getProductsByTypeAndBrand);
 
 router
