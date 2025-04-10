@@ -5,709 +5,712 @@ import { BadRequestError, NotFoundError } from "../errors";
 import { productService } from "../services/productService";
 import { supplierService } from "../services/supplierService";
 import {
-	generateSKU,
-	handleBuybackProduct,
-	parseDate,
-	productHelper,
-	userNdCompany,
+  generateSKU,
+  handleBuybackProduct,
+  parseDate,
+  productHelper,
+  userNdCompany,
 } from "../utils/helper";
 import {
-	ProductInput,
-	productUtils,
-	responseUtils,
+  ProductInput,
+  productUtils,
+  responseUtils,
 } from "../utils/helperUtils";
 import { prisma } from "../utils/prisma.h";
 
 export const InventoryCtrl = {
-	/**
-	 * Create a single product (or handle a buy-back scenario).
-	 *
-	 * Steps:
-	 * 1. Retrieve the current user and company info based on the authenticated request.
-	 * 2. Validate the incoming product input.
-	 * 3. Retrieve or create the supplier based on the supplier name and phone.
-	 * 4. Normalize the product condition (defaulting to NEW if not provided or invalid).
-	 * 5. Check if a product with the provided serial number already exists:
-	 *    - If an existing product is found:
-	 *       a. Upsert a customer record using the supplier's details.
-	 *       b. If the existing product has a quantity greater than zero, update its quantity by adding the new quantity and create a buy-back transaction.
-	 *       c. Otherwise, update the product’s details and create a buy-back transaction.
-	 *    - If no existing product is found, create a new product record.
-	 * 6. Return a CREATED response with the created product or the buy-back transaction details.
-	 */
-	createProduct: async (req: Request, res: Response) => {
-		const productInput = req.body as ProductInput;
-		const { user, company } = await userNdCompany(req.user);
-		const errors = productUtils.validateProduct(productInput);
-
-		if (errors) {
-			return responseUtils.error(
-				res,
-				"Validation failed",
-				StatusCodes.BAD_REQUEST,
-				errors
-			);
-		}
-
-		// Retrieve or create the supplier using the supplier's name and phone number.
-		let supplier;
-		if (productInput.supplierName || productInput.supplierPhone) {
-			supplier = await supplierService.getOrCreate(
-				productInput.supplierName,
-				productInput.supplierPhone,
-				company.id,
-				company.tenantId
-			);
-		}
-
-		if (productInput.serialNo) {
-			const existingProduct = await productService.findProductBySerial(
-				productInput.serialNo,
-				company.id
-			);
-
-			if (existingProduct) {
-				return handleBuybackProduct({
-					res,
-					existingProduct,
-					productInput,
-					user,
-					company,
-					supplier,
-				});
-			}
-		}
-
-		// Create the product record using the validated and normalized data.
-		const productData = productService.createProductData(
-			productInput,
-			user,
-			company,
-			supplier
-		);
-		const createdProduct = await prisma.product.create({ data: productData });
-		responseUtils.success(res, createdProduct, StatusCodes.CREATED);
-	},
-
-	/**
-	 * Create multiple products (bulk creation).
-	 * - Expects the request body to be an array of product objects.
-	 * - Validates each product for required fields.
-	 * - Processes supplier details in bulk.
-	 * - Creates new suppliers if needed.
-	 * - Processes each product creation concurrently and handles errors individually.
-	 */
-	createProducts: async (req: Request, res: Response) => {
-		// Ensure that the request body is an array.
-		if (!Array.isArray(req.body)) {
-			throw new BadRequestError("Request body must be an array of products");
-		}
-
-		// Retrieve the current user and company information.
-		const { user, company } = await userNdCompany(req.user);
-
-		// Filter products that include BOTH supplier details.
-		const productsWithSupplier = req.body.filter(
-			p => p["Supplier Name"] && p["Supplier Phone Number"]
-		);
-
-		// If any products include supplier details, perform a bulk getOrCreate.
-		const suppliers =
-			productsWithSupplier.length > 0
-				? await supplierService.bulkGetOrCreate(
-						productsWithSupplier.map(p => ({
-							name: p["Supplier Name"],
-							phone: p["Supplier Phone Number"],
-							companyId: company.id,
-							tenantId: company.tenantId,
-						}))
-				  )
-				: [];
-
-		const results: any = [];
-		const errors: any = [];
-
-		await Promise.all(
-			req.body.map(async (product, index) => {
-				try {
-					const supplier = suppliers.find(
-						s =>
-							s.name === product["Supplier Name"] &&
-							s.contact === product["Supplier Phone Number"]
-					);
-
-					// if (!supplier) throw new BadRequestError("Supplier not found");
-
-					const dataInput: any = {
-						tenantId: company.tenantId,
-						sku: product["SKU"] || generateSKU(product["Item Type"]),
-						productName: product["Product Name"],
-						description: product["Description"] || null,
-						brand: product["Brand"],
-						productType: product["Item Type"],
-						costPrice: Number(product["Cost Price"]) || 0,
-						sellingPrice: Number(product["Selling Price"]),
-						serialNo: product["Serial Number"],
-						purchaseDate: parseDate(product["Purchase Date"]) || new Date(),
-						condition: product["Condition"]
-							? (product["Condition"].toUpperCase() as Condition)
-							: Condition.NEW,
-						quantity: Number(product["Quantity"]) || 1,
-						createdById: user.id,
-						supplierId: supplier && supplier.id,
-						companyId: company.id,
-					};
-
-					const productData = productService.createProductData(
-						dataInput,
-						user,
-						company,
-						supplier
-					);
-					results.push(await prisma.product.create({ data: productData }));
-				} catch (error: any) {
-					errors.push({ index, error: error.message});
-				}
-			})
-		);
-
-		errors.length > 0
-			? responseUtils.multiStatus(res, results, errors)
-			: responseUtils.success(res, results, StatusCodes.CREATED);
-	},
-
-	/**
-	 * Get product counts grouped by product type and brand.
-	 * - Groups products based on type and brand.
-	 * - Returns the count (number of products) and the sum of quantities in each group.
-	 */
-	getProductCountsByTypeAndBrand: async (req: Request, res: Response) => {
-		const { email, companyId } = req.user;
-		const { company } = await userNdCompany({ email, companyId });
-
-		// Group products by productType and brand,
-		// count the occurrences and sum the quantity for each group.
-		const groupedProducts = await prisma.product.groupBy({
-			where: {
-				companyId: company.id,
-				tenantId: company.tenantId,
-				quantity: { gt: 0 },
-			},
-			by: ["productType", "brand"],
-			_count: { _all: true },
-			_sum: { quantity: true, sellingPrice: true },
-		});
-
-		const result = groupedProducts
-			.filter(p => p._sum.quantity !== 0)
-			.map(group => {
-				// Compute an average selling price for the group.
-				const count = group._count._all;
-				const totalSellingPrice = group._sum.sellingPrice || 0;
-				const avgSellingPrice = count ? Number(totalSellingPrice) / count : 0;
-				// Calculate inventory value as total quantity * average selling price.
-				const inventoryValue = (group._sum.quantity || 0) * avgSellingPrice;
-
-				return {
-					// categories: group._count._all,
-					stockCount: group._sum.quantity,
-					productType: group.productType,
-					brand: group.brand,
-					inventoryValue, // Total inventory value for this group
-				};
-			});
-
-		res.status(StatusCodes.OK).json({
-			success: true,
-			data: result,
-		});
-	},
-
-	/**
-	 * Retrieve products filtered by a given product type and brand.
-	 */
-	getProductsByTypeAndBrand: async (req: Request, res: Response) => {
-		const { type, brand } = req.params;
-		const { email, companyId } = req.user;
-		const { company } = await userNdCompany({ email, companyId });
-
-		// Fetch products matching the specified type and brand.
-		const products = await prisma.product.findMany({
-			where: {
-				companyId: company.id,
-				tenantId: company.tenantId,
-				productType: type,
-				brand,
-			},
-		});
-
-		if (products.length === 0) {
-			throw new NotFoundError("No products found");
-		}
-
-		const allProduct = products.filter(p => p.quantity !== 0);
-
-		res.status(StatusCodes.OK).json({
-			success: true,
-			data: allProduct,
-		});
-	},
-
-	/**
-	 * Retrieve a single product by SKU.
-	 */
-	getProductBySKU: async (req: Request, res: Response) => {
-		const {
-			params: { sku },
-			user: { email, companyId },
-		} = req;
-		// Use helper to retrieve product data.
-		const { product } = await productHelper({ sku, email, companyId });
-
-		res.status(StatusCodes.OK).json({
-			success: true,
-			data: product,
-		});
-	},
-
-	/**
-	 * Update a product identified by its SKU.
-	 * - Only allowed fields can be updated.
-	 * - The 'condition' field is normalized to uppercase.
-	 */
-	updateProduct: async (req: Request, res: Response) => {
-		const {
-			body,
-			params: { sku },
-			user: { email, companyId },
-		} = req;
-		const { company } = await productHelper({ sku, email, companyId });
-
-		// Define which fields are allowed to be updated.
-		const allowedFields = [
-			"description",
-			"brand",
-			"productType",
-			"productName",
-			"sellingPrice",
-			"costPrice",
-			"sku",
-			"condition",
-			"quantity",
-			"purchaseDate",
-		];
-
-		const updateData: Partial<Product> = {};
-		// Filter and assign allowed fields from the request body.
-		Object.keys(body).forEach(key => {
-			if (allowedFields.includes(key)) {
-				updateData[key as keyof Product] = body[key];
-			}
-		});
-
-		// Normalize and validate the 'condition' field.
-		if (updateData.condition) {
-			updateData.condition = updateData.condition.toUpperCase() as Condition;
-			if (!Object.values(Condition).includes(updateData.condition)) {
-				updateData.condition = Condition.NEW;
-			}
-		}
-
-		// Update the product record in the database.
-		const updatedProduct = await prisma.product.update({
-			where: {
-				sku_companyId_tenantId: {
-					sku,
-					companyId: company.id,
-					tenantId: company.tenantId,
-				},
-			},
-			data: updateData,
-		});
-
-		res.status(StatusCodes.OK).json({
-			success: true,
-			data: updatedProduct,
-			mag: "Product updated successfully",
-		});
-	},
-
-	/**
-	 * Soft delete a product by reducing its active quantity and logging the deletion event.
-	 * - Validates the deletion quantity.
-	 * - Updates the product's quantity.
-	 * - Creates a deletion event record.
-	 */
-	softDeleteProduct: async (req: Request, res: Response) => {
-		const {
-			params: { sku },
-			user: { email, companyId },
-			body: { deleteQuantity },
-		} = req;
-		const quantityToDelete = Number(deleteQuantity);
-		// Validate that a valid deletion quantity is provided.
-		if (!quantityToDelete || quantityToDelete <= 0) {
-			throw new BadRequestError("Invalid delete quantity provided.");
-		}
-
-		// Retrieve the company and product details.
-		const { company, product } = await productHelper({ sku, email, companyId });
-
-		// Ensure that the deletion quantity does not exceed the available product quantity.
-		if (quantityToDelete > product.quantity!) {
-			throw new BadRequestError(
-				"Delete quantity exceeds available product quantity.."
-			);
-		}
-
-		// Perform the update and deletion event creation within a transaction.
-		const updatedProduct = await prisma.$transaction(async tx => {
-			// Update the product's active quantity.
-			const productUpdate = await tx.product.update({
-				where: {
-					sku_companyId_tenantId: {
-						sku,
-						companyId: company.id,
-						tenantId: company.tenantId,
-					},
-				},
-				data: {
-					quantity: product.quantity - quantityToDelete,
-				},
-			});
-
-			// Log the deletion event with the current timestamp and deletion quantity.
-			await tx.productDeletionEvent.create({
-				data: {
-					productId: product.id,
-					deletionDate: new Date(),
-					quantity: quantityToDelete,
-				},
-			});
-
-			return productUpdate;
-		});
-
-		res.status(StatusCodes.OK).json({
-			success: true,
-			message: "Product deleted successfully",
-			data: updatedProduct,
-		});
-	},
-
-	/**
-	 * Retrieve soft-deleted products using deletion event logs.
-	 * - Fetches products that have at least one deletion event.
-	 * - Calculates the total deleted quantity and last deletion date per product.
-	 */
-	getSoftDeletedProductsUsingEvents: async (req: Request, res: Response) => {
-		const { email, companyId } = req.user;
-		const { company } = await userNdCompany({ email, companyId });
-
-		// Fetch products with at least one deletion event.
-		const products = await prisma.product.findMany({
-			where: {
-				companyId: company.id,
-				tenantId: company.tenantId,
-				ProductDeletionEvent: { some: {} },
-			},
-			select: {
-				sku: true,
-				productName: true,
-				quantity: true, // Active quantity remaining.
-				ProductDeletionEvent: {
-					select: {
-						deletionDate: true,
-						quantity: true,
-					},
-					orderBy: {
-						deletionDate: "asc", // Order events by deletion date.
-					},
-				},
-			},
-		});
-
-		if (!products.length) {
-			throw new NotFoundError("No products found");
-		}
-
-		// For each product, compute the total deleted quantity and the most recent deletion date.
-		const softDeletedProducts = products
-			.map(product => {
-				const totalDeleted = product.ProductDeletionEvent.reduce(
-					(sum, event) => sum + event.quantity,
-					0
-				);
-				if (totalDeleted > 0) {
-					const lastDeletionDate = product.ProductDeletionEvent.reduce(
-						(latest, event) => {
-							return event.deletionDate > latest ? event.deletionDate : latest;
-						},
-						new Date(0)
-					);
-
-					return {
-						sku: product.sku,
-						productName: product.productName,
-						activeQuantity: product.quantity,
-						deletedQuantity: totalDeleted,
-						lastDeletionDate,
-					};
-				}
-				return null;
-			})
-			.filter(p => p !== null);
-
-		res.status(StatusCodes.OK).json({
-			success: true,
-			data: { products, softDeletedProducts },
-		});
-	},
-
-	/**
-	 * Restore a specific quantity of a soft-deleted product.
-	 * - Validates the restore quantity.
-	 * - Retrieves all deletion events for the product.
-	 * - In a transaction, increases the product's active quantity and adjusts/deletes deletion events accordingly.
-	 */
-	restoreProductQuantity: async (req: Request, res: Response) => {
-		const {
-			params: { sku },
-			user: { email, companyId },
-			body: { restoreQuantity },
-		} = req;
-		const quantityToRestore = Number(restoreQuantity);
-
-		// Validate that the restore quantity is valid.
-		if (!quantityToRestore || quantityToRestore <= 0) {
-			throw new BadRequestError("Invalid restore quantity provided.");
-		}
-
-		// Retrieve the company and product information.
-		const { company, product } = await productHelper({ sku, email, companyId });
-
-		// Get all deletion events for the product, ordered by deletion date.
-		const deletionEvents = await prisma.productDeletionEvent.findMany({
-			where: { productId: product.id },
-			orderBy: { deletionDate: "asc" },
-		});
-
-		// Calculate the total quantity that has been soft-deleted.
-		const totalDeleted = deletionEvents.reduce(
-			(sum, event) => sum + event.quantity,
-			0
-		);
-
-		// Ensure that the restore quantity does not exceed the total deleted quantity.
-		if (quantityToRestore > totalDeleted) {
-			throw new BadRequestError(
-				"Restore quantity exceeds deleted product quantity."
-			);
-		}
-
-		// Use a transaction to update the product's quantity and adjust deletion events.
-		const updatedProduct = await prisma.$transaction(async tx => {
-			// Increase the active quantity of the product.
-			const productUpdate = await tx.product.update({
-				where: {
-					sku_companyId_tenantId: {
-						sku,
-						companyId: company.id,
-						tenantId: company.tenantId,
-					},
-				},
-				data: {
-					quantity: product.quantity + quantityToRestore,
-				},
-			});
-
-			// Process each deletion event until the restore quantity is fulfilled.
-			let remainingToRestore = quantityToRestore;
-			for (const event of deletionEvents) {
-				if (remainingToRestore <= 0) break;
-
-				if (event.quantity > remainingToRestore) {
-					// If the event has more quantity than needed, subtract the restore quantity.
-					const newQuantity = event.quantity - remainingToRestore;
-					if (newQuantity === 0) {
-						// If the resulting quantity is zero, delete the event.
-						await tx.productDeletionEvent.delete({
-							where: { id: event.id },
-						});
-					} else {
-						await tx.productDeletionEvent.update({
-							where: { id: event.id },
-							data: { quantity: newQuantity },
-						});
-					}
-					remainingToRestore = 0;
-				} else {
-					// Otherwise, delete the event and reduce the remaining restore quantity.
-					await tx.productDeletionEvent.delete({
-						where: { id: event.id },
-					});
-					remainingToRestore -= event.quantity;
-				}
-			}
-
-			return productUpdate;
-		});
-
-		res.status(StatusCodes.OK).json({
-			success: true,
-			data: updatedProduct,
-		});
-	},
-
-	/**
-	 * Hard delete a product's deletion events or the entire product.
-	 * - If the product still has active quantity (> 0), only deletion events are removed.
-	 * - If the product's active quantity is zero, the product and its deletion events are deleted.
-	 */
-	hardDeleteProduct: async (req: Request, res: Response) => {
-		const {
-			params: { sku },
-			user: { email, companyId },
-		} = req;
-		// Retrieve product and company info via helper.
-		const { product, company } = await productHelper({ sku, email, companyId });
-
-		if (product.quantity > 0) {
-			// Product has active units, so just remove the deletion events.
-			await prisma.productDeletionEvent.deleteMany({
-				where: { productId: product.id },
-			});
-
-			res.status(StatusCodes.OK).json({
-				success: true,
-				message:
-					"Deletion events removed. Product remains with active quantity.",
-			});
-			return;
-		} else {
-			// If no active quantity remains, delete the product and its deletion events atomically.
-			await prisma.$transaction(async tx => {
-				await tx.productDeletionEvent.deleteMany({
-					where: { productId: product.id },
-				});
-				await tx.product.delete({
-					where: {
-						sku_companyId_tenantId: {
-							sku,
-							companyId: company.id,
-							tenantId: company.tenantId,
-						},
-					},
-				});
-			});
-
-			res.status(StatusCodes.OK).json({
-				success: true,
-				message: "Product deleted as no active quantity remains.",
-			});
-		}
-	},
-
-	/**
-	 * Bulk hard delete soft-deleted products based on provided SKUs.
-	 * - Expects a request body with an array of SKUs.
-	 * - For each product:
-	 *   - If active quantity > 0, only deletion events are removed.
-	 *   - If active quantity === 0, the product and its deletion events are deleted.
-	 */
-	bulkHardDeleteSoftDeletedProducts: async (req: Request, res: Response) => {
-		const { companyId, tenantId } = req.user;
-		const { skus } = req.body; // e.g., { skus: ["SKU1", "SKU2", ...] }
-
-		if (!skus || !Array.isArray(skus) || skus.length === 0) {
-			throw new BadRequestError("Please provide an array of SKUs to process.");
-		}
-
-		// Fetch products with deletion events that match the provided SKUs.
-		const products = await prisma.product.findMany({
-			where: {
-				sku: { in: skus },
-				companyId,
-				tenantId,
-				ProductDeletionEvent: { some: {} },
-			},
-			select: { id: true, sku: true, quantity: true },
-		});
-
-		if (products.length === 0) {
-			throw new NotFoundError(
-				"No soft-deleted products found for the provided SKUs."
-			);
-		}
-
-		// Process each product accordingly.
-		for (const product of products) {
-			if (product.quantity > 0) {
-				// Active stock exists – remove deletion events only.
-				await prisma.productDeletionEvent.deleteMany({
-					where: { productId: product.id },
-				});
-			} else {
-				// No active stock – delete both deletion events and the product.
-				await prisma.$transaction(async tx => {
-					await tx.productDeletionEvent.deleteMany({
-						where: { productId: product.id },
-					});
-					await tx.product.delete({
-						where: { id: product.id },
-					});
-				});
-			}
-		}
-
-		res.status(StatusCodes.OK).json({
-			success: true,
-			message:
-				"Bulk hard deletion of soft-deleted products processed successfully.",
-		});
-	},
-
-	/**
-	 * Get an inventory summary.
-	 * - Calculates the total stock quantity (sum of all product quantities).
-	 * - Calculates the total selling price (sum of quantity * sellingPrice).
-	 * - Counts the number of unique product categories (grouped by productType).
-	 */
-	getInventorySummary: async (req: Request, res: Response) => {
-		const { email, companyId } = req.user;
-		const { company } = await userNdCompany({ email, companyId });
-
-		// Aggregate to get the total stock quantity.
-		const totalStockResult = await prisma.product.aggregate({
-			where: { companyId: company.id, tenantId: company.tenantId },
-			_sum: { quantity: true },
-		});
-
-		// Retrieve products to calculate the total selling price.
-		const products = await prisma.product.findMany({
-			where: { companyId: company.id, tenantId: company.tenantId },
-			select: { quantity: true, sellingPrice: true },
-		});
-
-		// Calculate the total selling price in-memory.
-		const totalSellingPrice = products.reduce(
-			(sum, product) => sum + product.quantity * Number(product.sellingPrice),
-			0
-		);
-
-		// Group products by productType to count distinct categories.
-		const groupedCategories = await prisma.product.groupBy({
-			by: ["productType"],
-			where: { companyId: company.id, tenantId: company.tenantId },
-		});
-
-		res.status(StatusCodes.OK).json({
-			success: true,
-			data: {
-				totalStockQuantity: totalStockResult._sum.quantity || 0,
-				totalSellingPrice,
-				categories: groupedCategories.length,
-			},
-		});
-	},
+  /**
+   * Create a single product (or handle a buy-back scenario).
+   *
+   * Steps:
+   * 1. Retrieve the current user and company info based on the authenticated request.
+   * 2. Validate the incoming product input.
+   * 3. Retrieve or create the supplier based on the supplier name and phone.
+   * 4. Normalize the product condition (defaulting to NEW if not provided or invalid).
+   * 5. Check if a product with the provided serial number already exists:
+   *    - If an existing product is found:
+   *       a. Upsert a customer record using the supplier's details.
+   *       b. If the existing product has a quantity greater than zero, update its quantity by adding the new quantity and create a buy-back transaction.
+   *       c. Otherwise, update the product’s details and create a buy-back transaction.
+   *    - If no existing product is found, create a new product record.
+   * 6. Return a CREATED response with the created product or the buy-back transaction details.
+   */
+  createProduct: async (req: Request, res: Response) => {
+    const productInput = req.body as ProductInput;
+    const { user, company } = await userNdCompany(req.user);
+    const errors = productUtils.validateProduct(productInput);
+
+    if (errors) {
+      return responseUtils.error(
+        res,
+        "Validation failed",
+        StatusCodes.BAD_REQUEST,
+        errors
+      );
+    }
+
+    // Retrieve or create the supplier using the supplier's name and phone number.
+    let supplier;
+    if (productInput.supplierName || productInput.supplierPhone) {
+      supplier = await supplierService.getOrCreate(
+        productInput.supplierName,
+        productInput.supplierPhone,
+        company.id,
+        company.tenantId
+      );
+    }
+
+    if (productInput.serialNo) {
+      const existingProduct = await productService.findProductBySerial(
+        productInput.serialNo,
+        company.id
+      );
+
+      if (existingProduct) {
+        return handleBuybackProduct({
+          res,
+          existingProduct,
+          productInput,
+          user,
+          company,
+          supplier,
+        });
+      }
+    }
+
+    // Create the product record using the validated and normalized data.
+    const productData = productService.createProductData(
+      productInput,
+      user,
+      company,
+      supplier
+    );
+    const createdProduct = await prisma.product.create({ data: productData });
+    responseUtils.success(res, createdProduct, StatusCodes.CREATED);
+  },
+
+  /**
+   * Create multiple products (bulk creation).
+   * - Expects the request body to be an array of product objects.
+   * - Validates each product for required fields.
+   * - Processes supplier details in bulk.
+   * - Creates new suppliers if needed.
+   * - Processes each product creation concurrently and handles errors individually.
+   */
+  createProducts: async (req: Request, res: Response) => {
+    // Ensure that the request body is an array.
+    if (!Array.isArray(req.body)) {
+      throw new BadRequestError("Request body must be an array of products");
+    }
+
+    // Retrieve the current user and company information.
+    const { user, company } = await userNdCompany(req.user);
+
+    // Filter products that include BOTH supplier details.
+    const productsWithSupplier = req.body.filter(
+      (p) => p["Supplier Name"] && String(p["Supplier Phone Number"])
+    );
+
+    // If any products include supplier details, perform a bulk getOrCreate.
+    const suppliers =
+      productsWithSupplier.length > 0
+        ? await supplierService.bulkGetOrCreate(
+            productsWithSupplier.map((p) => ({
+              name: p["Supplier Name"],
+              phone: String(p["Supplier Phone Number"]),
+              companyId: company.id,
+              tenantId: company.tenantId,
+            }))
+          )
+        : [];
+
+    const results: any = [];
+    const errors: any = [];
+
+    await Promise.all(
+      req.body.map(async (product, index) => {
+        try {
+          const supplier = suppliers.find(
+            (s) =>
+              s.name === product["Supplier Name"] &&
+              s.contact === product["Supplier Phone Number"]
+          );
+
+          // if (!supplier) throw new BadRequestError("Supplier not found");
+
+          const dataInput: any = {
+            tenantId: company.tenantId,
+            sku: product["SKU"] || generateSKU(product["Item Type"]),
+            productName: product["Product Name"],
+            description: product["Description"] || null,
+            brand: product["Brand"],
+            productType: product["Item Type"],
+            costPrice: Number(product["Cost Price"]) || 0,
+            sellingPrice: Number(product["Selling Price"]),
+            serialNo: product["Serial Number"],
+            purchaseDate: parseDate(product["Purchase Date"]) || new Date(),
+            condition: product["Condition"]
+              ? (product["Condition"].toUpperCase() as Condition)
+              : Condition.NEW,
+            quantity: Number(product["Quantity"]) || 1,
+            createdById: user.id,
+            supplierId: supplier && supplier.id,
+            companyId: company.id,
+          };
+
+          const productData = productService.createProductData(
+            dataInput,
+            user,
+            company,
+            supplier
+          );
+          results.push(await prisma.product.create({ data: productData }));
+        } catch (error: any) {
+          errors.push({
+            product: product?.["Serial Number"] || "Unknown",
+            error: `Error creating product with serial number ${product?.["Serial Number"]}`,
+          });
+        }
+      })
+    );
+
+    errors.length > 0
+      ? responseUtils.multiStatus(res, results, errors)
+      : responseUtils.success(res, results, StatusCodes.CREATED);
+  },
+
+  /**
+   * Get product counts grouped by product type and brand.
+   * - Groups products based on type and brand.
+   * - Returns the count (number of products) and the sum of quantities in each group.
+   */
+  getProductCountsByTypeAndBrand: async (req: Request, res: Response) => {
+    const { email, companyId } = req.user;
+    const { company } = await userNdCompany({ email, companyId });
+
+    // Group products by productType and brand,
+    // count the occurrences and sum the quantity for each group.
+    const groupedProducts = await prisma.product.groupBy({
+      where: {
+        companyId: company.id,
+        tenantId: company.tenantId,
+        quantity: { gt: 0 },
+      },
+      by: ["productType", "brand"],
+      _count: { _all: true },
+      _sum: { quantity: true, sellingPrice: true },
+    });
+
+    const result = groupedProducts
+      .filter((p) => p._sum.quantity !== 0)
+      .map((group) => {
+        // Compute an average selling price for the group.
+        const count = group._count._all;
+        const totalSellingPrice = group._sum.sellingPrice || 0;
+        const avgSellingPrice = count ? Number(totalSellingPrice) / count : 0;
+        // Calculate inventory value as total quantity * average selling price.
+        const inventoryValue = (group._sum.quantity || 0) * avgSellingPrice;
+
+        return {
+          // categories: group._count._all,
+          stockCount: group._sum.quantity,
+          productType: group.productType,
+          brand: group.brand,
+          inventoryValue, // Total inventory value for this group
+        };
+      });
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: result,
+    });
+  },
+
+  /**
+   * Retrieve products filtered by a given product type and brand.
+   */
+  getProductsByTypeAndBrand: async (req: Request, res: Response) => {
+    const { type, brand } = req.params;
+    const { email, companyId } = req.user;
+    const { company } = await userNdCompany({ email, companyId });
+
+    // Fetch products matching the specified type and brand.
+    const products = await prisma.product.findMany({
+      where: {
+        companyId: company.id,
+        tenantId: company.tenantId,
+        productType: type,
+        brand,
+      },
+    });
+
+    if (products.length === 0) {
+      throw new NotFoundError("No products found");
+    }
+
+    const allProduct = products.filter((p) => p.quantity !== 0);
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: allProduct,
+    });
+  },
+
+  /**
+   * Retrieve a single product by SKU.
+   */
+  getProductBySKU: async (req: Request, res: Response) => {
+    const {
+      params: { sku },
+      user: { email, companyId },
+    } = req;
+    // Use helper to retrieve product data.
+    const { product } = await productHelper({ sku, email, companyId });
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: product,
+    });
+  },
+
+  /**
+   * Update a product identified by its SKU.
+   * - Only allowed fields can be updated.
+   * - The 'condition' field is normalized to uppercase.
+   */
+  updateProduct: async (req: Request, res: Response) => {
+    const {
+      body,
+      params: { sku },
+      user: { email, companyId },
+    } = req;
+    const { company } = await productHelper({ sku, email, companyId });
+
+    // Define which fields are allowed to be updated.
+    const allowedFields = [
+      "description",
+      "brand",
+      "productType",
+      "productName",
+      "sellingPrice",
+      "costPrice",
+      "sku",
+      "condition",
+      "quantity",
+      "purchaseDate",
+    ];
+
+    const updateData: Partial<Product> = {};
+    // Filter and assign allowed fields from the request body.
+    Object.keys(body).forEach((key) => {
+      if (allowedFields.includes(key)) {
+        updateData[key as keyof Product] = body[key];
+      }
+    });
+
+    // Normalize and validate the 'condition' field.
+    if (updateData.condition) {
+      updateData.condition = updateData.condition.toUpperCase() as Condition;
+      if (!Object.values(Condition).includes(updateData.condition)) {
+        updateData.condition = Condition.NEW;
+      }
+    }
+
+    // Update the product record in the database.
+    const updatedProduct = await prisma.product.update({
+      where: {
+        sku_companyId_tenantId: {
+          sku,
+          companyId: company.id,
+          tenantId: company.tenantId,
+        },
+      },
+      data: updateData,
+    });
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: updatedProduct,
+      mag: "Product updated successfully",
+    });
+  },
+
+  /**
+   * Soft delete a product by reducing its active quantity and logging the deletion event.
+   * - Validates the deletion quantity.
+   * - Updates the product's quantity.
+   * - Creates a deletion event record.
+   */
+  softDeleteProduct: async (req: Request, res: Response) => {
+    const {
+      params: { sku },
+      user: { email, companyId },
+      body: { deleteQuantity },
+    } = req;
+    const quantityToDelete = Number(deleteQuantity);
+    // Validate that a valid deletion quantity is provided.
+    if (!quantityToDelete || quantityToDelete <= 0) {
+      throw new BadRequestError("Invalid delete quantity provided.");
+    }
+
+    // Retrieve the company and product details.
+    const { company, product } = await productHelper({ sku, email, companyId });
+
+    // Ensure that the deletion quantity does not exceed the available product quantity.
+    if (quantityToDelete > product.quantity!) {
+      throw new BadRequestError(
+        "Delete quantity exceeds available product quantity.."
+      );
+    }
+
+    // Perform the update and deletion event creation within a transaction.
+    const updatedProduct = await prisma.$transaction(async (tx) => {
+      // Update the product's active quantity.
+      const productUpdate = await tx.product.update({
+        where: {
+          sku_companyId_tenantId: {
+            sku,
+            companyId: company.id,
+            tenantId: company.tenantId,
+          },
+        },
+        data: {
+          quantity: product.quantity - quantityToDelete,
+        },
+      });
+
+      // Log the deletion event with the current timestamp and deletion quantity.
+      await tx.productDeletionEvent.create({
+        data: {
+          productId: product.id,
+          deletionDate: new Date(),
+          quantity: quantityToDelete,
+        },
+      });
+
+      return productUpdate;
+    });
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Product deleted successfully",
+      data: updatedProduct,
+    });
+  },
+
+  /**
+   * Retrieve soft-deleted products using deletion event logs.
+   * - Fetches products that have at least one deletion event.
+   * - Calculates the total deleted quantity and last deletion date per product.
+   */
+  getSoftDeletedProductsUsingEvents: async (req: Request, res: Response) => {
+    const { email, companyId } = req.user;
+    const { company } = await userNdCompany({ email, companyId });
+
+    // Fetch products with at least one deletion event.
+    const products = await prisma.product.findMany({
+      where: {
+        companyId: company.id,
+        tenantId: company.tenantId,
+        ProductDeletionEvent: { some: {} },
+      },
+      select: {
+        sku: true,
+        productName: true,
+        quantity: true, // Active quantity remaining.
+        ProductDeletionEvent: {
+          select: {
+            deletionDate: true,
+            quantity: true,
+          },
+          orderBy: {
+            deletionDate: "asc", // Order events by deletion date.
+          },
+        },
+      },
+    });
+
+    if (!products.length) {
+      throw new NotFoundError("No products found");
+    }
+
+    // For each product, compute the total deleted quantity and the most recent deletion date.
+    const softDeletedProducts = products
+      .map((product) => {
+        const totalDeleted = product.ProductDeletionEvent.reduce(
+          (sum, event) => sum + event.quantity,
+          0
+        );
+        if (totalDeleted > 0) {
+          const lastDeletionDate = product.ProductDeletionEvent.reduce(
+            (latest, event) => {
+              return event.deletionDate > latest ? event.deletionDate : latest;
+            },
+            new Date(0)
+          );
+
+          return {
+            sku: product.sku,
+            productName: product.productName,
+            activeQuantity: product.quantity,
+            deletedQuantity: totalDeleted,
+            lastDeletionDate,
+          };
+        }
+        return null;
+      })
+      .filter((p) => p !== null);
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: { products, softDeletedProducts },
+    });
+  },
+
+  /**
+   * Restore a specific quantity of a soft-deleted product.
+   * - Validates the restore quantity.
+   * - Retrieves all deletion events for the product.
+   * - In a transaction, increases the product's active quantity and adjusts/deletes deletion events accordingly.
+   */
+  restoreProductQuantity: async (req: Request, res: Response) => {
+    const {
+      params: { sku },
+      user: { email, companyId },
+      body: { restoreQuantity },
+    } = req;
+    const quantityToRestore = Number(restoreQuantity);
+
+    // Validate that the restore quantity is valid.
+    if (!quantityToRestore || quantityToRestore <= 0) {
+      throw new BadRequestError("Invalid restore quantity provided.");
+    }
+
+    // Retrieve the company and product information.
+    const { company, product } = await productHelper({ sku, email, companyId });
+
+    // Get all deletion events for the product, ordered by deletion date.
+    const deletionEvents = await prisma.productDeletionEvent.findMany({
+      where: { productId: product.id },
+      orderBy: { deletionDate: "asc" },
+    });
+
+    // Calculate the total quantity that has been soft-deleted.
+    const totalDeleted = deletionEvents.reduce(
+      (sum, event) => sum + event.quantity,
+      0
+    );
+
+    // Ensure that the restore quantity does not exceed the total deleted quantity.
+    if (quantityToRestore > totalDeleted) {
+      throw new BadRequestError(
+        "Restore quantity exceeds deleted product quantity."
+      );
+    }
+
+    // Use a transaction to update the product's quantity and adjust deletion events.
+    const updatedProduct = await prisma.$transaction(async (tx) => {
+      // Increase the active quantity of the product.
+      const productUpdate = await tx.product.update({
+        where: {
+          sku_companyId_tenantId: {
+            sku,
+            companyId: company.id,
+            tenantId: company.tenantId,
+          },
+        },
+        data: {
+          quantity: product.quantity + quantityToRestore,
+        },
+      });
+
+      // Process each deletion event until the restore quantity is fulfilled.
+      let remainingToRestore = quantityToRestore;
+      for (const event of deletionEvents) {
+        if (remainingToRestore <= 0) break;
+
+        if (event.quantity > remainingToRestore) {
+          // If the event has more quantity than needed, subtract the restore quantity.
+          const newQuantity = event.quantity - remainingToRestore;
+          if (newQuantity === 0) {
+            // If the resulting quantity is zero, delete the event.
+            await tx.productDeletionEvent.delete({
+              where: { id: event.id },
+            });
+          } else {
+            await tx.productDeletionEvent.update({
+              where: { id: event.id },
+              data: { quantity: newQuantity },
+            });
+          }
+          remainingToRestore = 0;
+        } else {
+          // Otherwise, delete the event and reduce the remaining restore quantity.
+          await tx.productDeletionEvent.delete({
+            where: { id: event.id },
+          });
+          remainingToRestore -= event.quantity;
+        }
+      }
+
+      return productUpdate;
+    });
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: updatedProduct,
+    });
+  },
+
+  /**
+   * Hard delete a product's deletion events or the entire product.
+   * - If the product still has active quantity (> 0), only deletion events are removed.
+   * - If the product's active quantity is zero, the product and its deletion events are deleted.
+   */
+  hardDeleteProduct: async (req: Request, res: Response) => {
+    const {
+      params: { sku },
+      user: { email, companyId },
+    } = req;
+    // Retrieve product and company info via helper.
+    const { product, company } = await productHelper({ sku, email, companyId });
+
+    if (product.quantity > 0) {
+      // Product has active units, so just remove the deletion events.
+      await prisma.productDeletionEvent.deleteMany({
+        where: { productId: product.id },
+      });
+
+      res.status(StatusCodes.OK).json({
+        success: true,
+        message:
+          "Deletion events removed. Product remains with active quantity.",
+      });
+      return;
+    } else {
+      // If no active quantity remains, delete the product and its deletion events atomically.
+      await prisma.$transaction(async (tx) => {
+        await tx.productDeletionEvent.deleteMany({
+          where: { productId: product.id },
+        });
+        await tx.product.delete({
+          where: {
+            sku_companyId_tenantId: {
+              sku,
+              companyId: company.id,
+              tenantId: company.tenantId,
+            },
+          },
+        });
+      });
+
+      res.status(StatusCodes.OK).json({
+        success: true,
+        message: "Product deleted as no active quantity remains.",
+      });
+    }
+  },
+
+  /**
+   * Bulk hard delete soft-deleted products based on provided SKUs.
+   * - Expects a request body with an array of SKUs.
+   * - For each product:
+   *   - If active quantity > 0, only deletion events are removed.
+   *   - If active quantity === 0, the product and its deletion events are deleted.
+   */
+  bulkHardDeleteSoftDeletedProducts: async (req: Request, res: Response) => {
+    const { companyId, tenantId } = req.user;
+    const { skus } = req.body; // e.g., { skus: ["SKU1", "SKU2", ...] }
+
+    if (!skus || !Array.isArray(skus) || skus.length === 0) {
+      throw new BadRequestError("Please provide an array of SKUs to process.");
+    }
+
+    // Fetch products with deletion events that match the provided SKUs.
+    const products = await prisma.product.findMany({
+      where: {
+        sku: { in: skus },
+        companyId,
+        tenantId,
+        ProductDeletionEvent: { some: {} },
+      },
+      select: { id: true, sku: true, quantity: true },
+    });
+
+    if (products.length === 0) {
+      throw new NotFoundError(
+        "No soft-deleted products found for the provided SKUs."
+      );
+    }
+
+    // Process each product accordingly.
+    for (const product of products) {
+      if (product.quantity > 0) {
+        // Active stock exists – remove deletion events only.
+        await prisma.productDeletionEvent.deleteMany({
+          where: { productId: product.id },
+        });
+      } else {
+        // No active stock – delete both deletion events and the product.
+        await prisma.$transaction(async (tx) => {
+          await tx.productDeletionEvent.deleteMany({
+            where: { productId: product.id },
+          });
+          await tx.product.delete({
+            where: { id: product.id },
+          });
+        });
+      }
+    }
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message:
+        "Bulk hard deletion of soft-deleted products processed successfully.",
+    });
+  },
+
+  /**
+   * Get an inventory summary.
+   * - Calculates the total stock quantity (sum of all product quantities).
+   * - Calculates the total selling price (sum of quantity * sellingPrice).
+   * - Counts the number of unique product categories (grouped by productType).
+   */
+  getInventorySummary: async (req: Request, res: Response) => {
+    const { email, companyId } = req.user;
+    const { company } = await userNdCompany({ email, companyId });
+
+    // Aggregate to get the total stock quantity.
+    const totalStockResult = await prisma.product.aggregate({
+      where: { companyId: company.id, tenantId: company.tenantId },
+      _sum: { quantity: true },
+    });
+
+    // Retrieve products to calculate the total selling price.
+    const products = await prisma.product.findMany({
+      where: { companyId: company.id, tenantId: company.tenantId },
+      select: { quantity: true, sellingPrice: true },
+    });
+
+    // Calculate the total selling price in-memory.
+    const totalSellingPrice = products.reduce(
+      (sum, product) => sum + product.quantity * Number(product.sellingPrice),
+      0
+    );
+
+    // Group products by productType to count distinct categories.
+    const groupedCategories = await prisma.product.groupBy({
+      by: ["productType"],
+      where: { companyId: company.id, tenantId: company.tenantId },
+    });
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: {
+        totalStockQuantity: totalStockResult._sum.quantity || 0,
+        totalSellingPrice,
+        categories: groupedCategories.length,
+      },
+    });
+  },
 };
