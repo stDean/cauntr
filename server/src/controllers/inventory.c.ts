@@ -252,17 +252,16 @@ export const InventoryCtrl = {
       throw new NotFoundError("No products found");
     }
 
-    
     const allProduct = products.filter((p) => p.quantity !== 0);
-    const returnedData = allProduct.map(p => ({
+    const returnedData = allProduct.map((p) => ({
       productName: p.productName,
       brand: p.brand,
       type: p.productType,
       quantity: p.quantity,
       sellingPrice: p.sellingPrice,
       sku: p.sku,
-      serialNo: p.serialNo
-    }))
+      serialNo: p.serialNo,
+    }));
 
     res.status(StatusCodes.OK).json({
       success: true,
@@ -726,5 +725,31 @@ export const InventoryCtrl = {
         categories: groupedCategories.length,
       },
     });
+  },
+  getAllProducts: async (req: Request, res: Response): Promise<void> => {
+    const { email, companyId } = req.user;
+    const { company } = await userNdCompany({ email, companyId });
+
+    // TODO:do the filter system later!!
+    // const filterQuery = req.query;
+
+    const products = await prisma.product.findMany({
+      where: { companyId: company.id, tenantId: company.tenantId },
+    });
+
+    const returnedProduct = products.map((p) => ({
+      productName: p.productName,
+      id: p.id,
+      qty: p.quantity,
+      price: p.sellingPrice,
+    }));
+
+    res
+      .status(StatusCodes.OK)
+      .json({
+        msg: "successful",
+        data: returnedProduct,
+        nbHits: products.length,
+      });
   },
 };

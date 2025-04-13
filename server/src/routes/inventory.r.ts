@@ -17,6 +17,7 @@ router
   );
 
 router.route("/summary").get(AuthMiddleware, InventoryCtrl.getInventorySummary);
+router.route("/all").get(AuthMiddleware, InventoryCtrl.getAllProducts);
 router
   .route("/products/summary")
   .get(AuthMiddleware, InventoryCtrl.getProductCountsByTypeAndBrand);
