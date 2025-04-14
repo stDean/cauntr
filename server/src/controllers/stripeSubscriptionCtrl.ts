@@ -44,6 +44,7 @@ export const StripeCtrl = {
   createSubscription: async (req: Request, res: Response): Promise<void> => {
     const { companySubscription, company } = await checkSub(req.user.companyId);
     const tier = `${req.body.tier}_${req.body.tierType}`;
+    console.log({ ...req.body, tier });
 
     const url = await StripeService.createCheckoutSession(
       companySubscription,
@@ -149,7 +150,7 @@ export const StripeCtrl = {
 
       return {
         planName: planNames.join(", ") || "Multiple Plans",
-        startDate:new Date(companySubscription.startDate!),
+        startDate: new Date(companySubscription.startDate!),
         endDate: new Date(companySubscription.endDate!),
         amount: totalAmount / 100, // Convert cents to naira
         status: statusMap[invoice.status!] ?? "Unknown",

@@ -146,7 +146,7 @@ export const InventoryCtrl = {
             brand: product["Brand"],
             productType: product["Item Type"],
             costPrice: Number(product["Cost Price"]) || 0,
-            sellingPrice: Number(product["Selling Price"]),
+            sellingPrice: Number(product["Selling Price"]) || 0,
             serialNo: product["Serial Number"],
             purchaseDate: parseDate(product["Purchase Date"]) || new Date(),
             condition: product["Condition"]
@@ -726,12 +726,10 @@ export const InventoryCtrl = {
       },
     });
   },
+
   getAllProducts: async (req: Request, res: Response): Promise<void> => {
     const { email, companyId } = req.user;
     const { company } = await userNdCompany({ email, companyId });
-
-    // TODO:do the filter system later!!
-    // const filterQuery = req.query;
 
     const products = await prisma.product.findMany({
       where: { companyId: company.id, tenantId: company.tenantId },
@@ -742,14 +740,61 @@ export const InventoryCtrl = {
       id: p.id,
       qty: p.quantity,
       price: p.sellingPrice,
+      brand: p.brand,
+      productType: p.productType,
+      sn: p.serialNo,
+      costPrice: p.costPrice,
+      sku: p.sku,
     }));
 
-    res
-      .status(StatusCodes.OK)
-      .json({
-        msg: "successful",
-        data: returnedProduct,
-        nbHits: products.length,
-      });
+    res.status(StatusCodes.OK).json({
+      msg: "successful",
+      data: returnedProduct,
+      nbHits: products.length,
+    });
+  },
+
+  getCategories: async (req: Request, res: Response) => {
+    const { email, companyId } = req.user;
+    const { company } = await userNdCompany({ email, companyId });
+
+    const products = await prisma.product.findMany({
+      where: {
+        companyId: company.id,
+        tenantId: company.tenantId,
+        quantity: { not: 0 },
+      },
+      select: {
+        brand: true,
+        productType: true,
+      },
+    });
+
+    // Group brands by product type with unique values
+    const groupedData = products.reduce(
+      (acc: { [key: string]: string[] }, product) => {
+        const { productType, brand } = product;
+        if (!acc[productType]) {
+          acc[productType] = [];
+        }
+        // Add brand if it's not already in the array
+        if (!acc[productType].includes(brand)) {
+          acc[productType].push(brand);
+        }
+        return acc;
+      },
+      {}
+    );
+
+    // Convert to array format
+    const result = Object.entries(groupedData).map(([productType, brands]) => ({
+      productType,
+      brands,
+    }));
+
+    res.status(StatusCodes.OK).json({
+      msg: "Categories successfully obtained",
+      data: result,
+    });
   },
 };

@@ -30,7 +30,7 @@ export const productService = {
 		brand: input.brand,
 		productType: input.productType,
 		costPrice: Number(input.costPrice || 0),
-		sellingPrice: Number(input.sellingPrice),
+		sellingPrice: Number(input.sellingPrice) || 0,
 		serialNo: input.serialNo || null,
 		purchaseDate: input.purchaseDate
 			? new Date(input.purchaseDate)

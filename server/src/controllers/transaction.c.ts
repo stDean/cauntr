@@ -292,6 +292,7 @@ export const TransactionsCtrl = {
       res.status(StatusCodes.OK).json({
         success: true,
         data: { transaction, customer, paymentPlan },
+        msg: `Product with sku: ${params.sku} successfully sold`,
       });
     });
   },

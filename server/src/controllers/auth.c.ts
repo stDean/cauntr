@@ -376,6 +376,7 @@ export const AuthController = {
         lastName: user.last_name,
         role: user.role,
         phone: user.phone,
+        companyStatus: company.subscriptionStatus,
       },
     });
   },
@@ -457,6 +458,7 @@ export const AuthController = {
         lastName: user.last_name,
         role: user.role,
         phone: user.phone,
+        companyStatus: user.Company?.subscriptionStatus,
       },
     });
   },

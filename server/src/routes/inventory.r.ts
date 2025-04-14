@@ -25,6 +25,8 @@ router
   .route("/related/:type/:brand/:name")
   .get(AuthMiddleware, InventoryCtrl.getProductsByTypeAndBrand);
 
+router.route("/categories").get(AuthMiddleware, InventoryCtrl.getCategories);
+
 router
   .route("/products/soft-deleted")
   .get(
