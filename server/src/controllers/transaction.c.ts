@@ -64,6 +64,8 @@ interface SellProductRequest {
     balanceOwed: number;
     frequency: string;
   };
+  vat: number;
+  totalPay: number;
 }
 
 // Helper functions
@@ -232,6 +234,8 @@ export const TransactionsCtrl = {
       transaction: transactionBody,
       payment,
       customerDetails,
+      vat,
+      totalPay,
     } = body as SellProductRequest;
     // Add validation for required fields
     validationUtils.validateRequiredFields(body, ["transaction"]);
@@ -287,6 +291,8 @@ export const TransactionsCtrl = {
         balanceOwed: payment.balanceOwed,
         frequency: payment.frequency,
         transId: transaction.id,
+        vat,
+        totalPay,
       });
 
       res.status(StatusCodes.OK).json({
@@ -376,11 +382,14 @@ export const TransactionsCtrl = {
         balanceOwed: body.payment.balanceOwed,
         frequency: body.payment.frequency,
         transId: transaction.id,
+        vat: body.vat,
+        totalPay: body.totalPay,
       });
 
       res.status(StatusCodes.OK).json({
         success: true,
         data: { transaction, customer, paymentPlan },
+        msg: "Products successfully sold.",
       });
     });
   },
@@ -403,70 +412,70 @@ export const TransactionsCtrl = {
    * - If payment details are provided, create a corresponding payment plan.
    * - Return a JSON response confirming the successful swap, along with transaction, payment, and customer details.
    */
-  swapProduct: async (req: Request, res: Response) => {
-    const { user, body, params } = req;
-    const { outgoing, incoming, customerDetails, payment } =
-      body as SwapProductRequest;
-    // Validate input
-    if (!outgoing?.sku || !outgoing?.quantity || !incoming?.length) {
-      throw new BadRequestError(
-        "Invalid swap request: Missing required fields"
-      );
-    }
+  // swapProduct: async (req: Request, res: Response) => {
+  //   const { user, body, params } = req;
+  //   const { outgoing, incoming, customerDetails, payment } =
+  //     body as SwapProductRequest;
+  //   // Validate input
+  //   if (!outgoing?.sku || !outgoing?.quantity || !incoming?.length) {
+  //     throw new BadRequestError(
+  //       "Invalid swap request: Missing required fields"
+  //     );
+  //   }
 
-    // Get company context
-    const { company, user: authUser } = await userNdCompany(user);
+  //   // Get company context
+  //   const { company, user: authUser } = await userNdCompany(user);
 
-    return prisma.$transaction(async (tx) => {
-      // 1. Process outgoing product
-      const outgoingProduct = await handleOutgoingProduct(
-        tx,
-        company,
-        params.sku,
-        outgoing.quantity
-      );
+  //   return prisma.$transaction(async (tx) => {
+  //     // 1. Process outgoing product
+  //     const outgoingProduct = await handleOutgoingProduct(
+  //       tx,
+  //       company,
+  //       params.sku,
+  //       outgoing.quantity
+  //     );
 
-      // 2. Process incoming products
-      const incomingProducts = await Promise.all(
-        incoming.map((item) =>
-          handleIncomingProduct(tx, company, authUser.id, item)
-        )
-      );
+  //     // 2. Process incoming products
+  //     const incomingProducts = await Promise.all(
+  //       incoming.map((item) =>
+  //         handleIncomingProduct(tx, company, authUser.id, item)
+  //       )
+  //     );
 
-      // 3. Handle customer
-      let customer;
-      if (customerDetails) {
-        customer = await customerUtils.upsertCustomer(
-          tx,
-          customerDetails,
-          company
-        );
-      }
+  //     // 3. Handle customer
+  //     let customer;
+  //     if (customerDetails) {
+  //       customer = await customerUtils.upsertCustomer(
+  //         tx,
+  //         customerDetails,
+  //         company
+  //       );
+  //     }
 
-      // 4. Create transaction
-      const transaction = await transactionUtils.createSwapTransaction(tx, {
-        company,
-        userId: authUser.id,
-        customerId: customer && customer.id,
-        outgoingProduct,
-        outgoingQuantity: outgoing.quantity,
-        incomingProducts,
-      });
+  //     // 4. Create transaction
+  //     const transaction = await transactionUtils.createSwapTransaction(tx, {
+  //       company,
+  //       userId: authUser.id,
+  //       customerId: customer && customer.id,
+  //       outgoingProduct,
+  //       outgoingQuantity: outgoing.quantity,
+  //       incomingProducts,
+  //     });
 
-      // 5. Handle payment if applicable
-      const paymentPlan = await paymentUtils.createPaymentPlan(tx, {
-        customerId: customer && customer.id,
-        transId: transaction.id,
-        ...payment,
-      });
+  //     // 5. Handle payment if applicable
+  //     const paymentPlan = await paymentUtils.createPaymentPlan(tx, {
+  //       customerId: customer && customer.id,
+  //       transId: transaction.id,
+  //       ...payment,
+  //     });
 
-      res.status(StatusCodes.OK).json({
-        success: true,
-        data: { transaction, paymentPlan, customer },
-        message: "Product swap completed successfully",
-      });
-    });
-  },
+  //     res.status(StatusCodes.OK).json({
+  //       success: true,
+  //       data: { transaction, paymentPlan, customer },
+  //       message: "Product swap completed successfully",
+  //     });
+  //   });
+  // },
 
   /**
    * Retrieve sold products.
@@ -680,6 +689,11 @@ export const TransactionsCtrl = {
                 product?.Transaction?.Payments?.[0]?.payments?.[0]?.totalAmount
               ),
             balanceOwed: balance,
+            totalPay:
+              Number(amount) +
+              Number(
+                product?.Transaction?.Payments?.[0]?.payments?.[0]?.totalPay
+              ),
           },
         },
       },

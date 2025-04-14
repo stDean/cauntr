@@ -304,6 +304,8 @@ CREATE TABLE `PaymentPlan` (
 CREATE TABLE `Payment` (
     `id` VARCHAR(191) NOT NULL,
     `totalAmount` DECIMAL(12, 2) NOT NULL,
+    `totalPay` DECIMAL(12, 2) NOT NULL,
+    `vat` DECIMAL(12, 2) NOT NULL DEFAULT 0,
     `balanceOwed` DECIMAL(12, 2) NULL DEFAULT 0,
     `paymentDate` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `method` ENUM('CASH', 'BANK_TRANSFER') NOT NULL,

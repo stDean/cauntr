@@ -383,6 +383,8 @@ model PaymentPlan {
 model Payment {
   id            String        @id @default(uuid())
   totalAmount   Decimal       @db.Decimal(12, 2)
+  totalPay      Decimal       @db.Decimal(12, 2)
+  vat           Decimal       @default(0) @db.Decimal(12, 2)
   balanceOwed   Decimal?      @default(0) @db.Decimal(12, 2)
   paymentDate   DateTime      @default(now())
   method        PaymentMethod

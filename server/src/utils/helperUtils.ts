@@ -203,6 +203,8 @@ export const paymentUtils = {
       frequency?: string;
       installmentCount?: number;
       transId?: string;
+      vat: number;
+      totalPay: number
     }
   ) => {
     return tx.paymentPlan.create({
@@ -222,6 +224,8 @@ export const paymentUtils = {
             method:
               (config.paymentMethod?.toUpperCase() as PaymentMethod) || "CASH",
             balanceOwed: config.balanceOwed ?? 0,
+            vat: config.vat,
+            totalPay: config.totalPay,
           },
         },
       },

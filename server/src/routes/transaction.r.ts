@@ -25,12 +25,12 @@ router
     [AuthMiddleware, CheckActiveSubscription],
     TransactionsCtrl.sellProducts
   );
-router
-  .route("/products/:sku/swap")
-  .post(
-    [AuthMiddleware, CheckActiveSubscription],
-    TransactionsCtrl.swapProduct
-  );
+// router
+//   .route("/products/:sku/swap")
+//   .post(
+//     [AuthMiddleware, CheckActiveSubscription],
+//     TransactionsCtrl.swapProduct
+//   );
 
 router
   .route("/products/:transactionId/sold")
