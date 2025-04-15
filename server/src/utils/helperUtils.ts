@@ -204,7 +204,13 @@ export const paymentUtils = {
       installmentCount?: number;
       transId?: string;
       vat: number;
-      totalPay: number
+      totalPay: number;
+      acctPaidTo?: {
+        bankName: string;
+        acctNo: string;
+        acctName: string;
+        userBankId?: string;
+      };
     }
   ) => {
     return tx.paymentPlan.create({
@@ -226,6 +232,22 @@ export const paymentUtils = {
             balanceOwed: config.balanceOwed ?? 0,
             vat: config.vat,
             totalPay: config.totalPay,
+            acctPaidTo: config.paymentMethod === "BANK_TRANSFER" ?{
+              connectOrCreate: {
+                where: {
+                  userBankId: config.acctPaidTo?.userBankId,
+                },
+                create: {
+                  bank: {
+                    create: {
+                      bankName: config.acctPaidTo?.bankName || "",
+                      acctNo: config.acctPaidTo?.acctNo || "",
+                      acctName: config.acctPaidTo?.acctName || "",
+                    },
+                  },
+                },
+              },
+            }: undefined,
           },
         },
       },

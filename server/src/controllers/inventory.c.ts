@@ -1,7 +1,11 @@
 import { Condition, Product, Supplier } from "@prisma/client";
 import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
-import { BadRequestError, NotFoundError } from "../errors";
+import {
+  BadRequestError,
+  NotFoundError,
+  UnauthenticatedError,
+} from "../errors";
 import { productService } from "../services/productService";
 import { supplierService } from "../services/supplierService";
 import {
@@ -796,5 +800,57 @@ export const InventoryCtrl = {
       msg: "Categories successfully obtained",
       data: result,
     });
+  },
+
+  getAllBanks: async (req: Request, res: Response) => {
+    const { email, companyId } = req.user;
+    const { company } = await userNdCompany({ email, companyId });
+
+    const banks = await prisma.companyAccount.findUnique({
+      where: { companyId: company.id, tenantId: company.tenantId },
+      select: {
+        banks: {
+          select: {
+            acctName: true,
+            acctNo: true,
+            bankName: true,
+            id: true,
+          },
+        },
+      },
+    });
+
+    res.status(StatusCodes.OK).json({ msg: "Banks Obtained", data: banks });
+  },
+
+  createAllBanks: async (req: Request, res: Response) => {
+    const { email, companyId } = req.user;
+    const { company } = await userNdCompany({ email, companyId });
+    const { bankName, acctNo, acctName } = req.body;
+
+    if (!companyId)
+      throw new UnauthenticatedError("Not authorized to perform this action");
+
+    const bank = await prisma.userBank.findFirst({
+      where: {
+        bankName,
+        acctName,
+        acctNo,
+        companyAccountId: company.CompanyAccount?.id,
+      },
+    });
+
+    if (bank) throw new BadRequestError("This bank already exist.");
+
+    await prisma.userBank.create({
+      data: {
+        bankName,
+        acctName,
+        acctNo,
+        companyAccountId: company.CompanyAccount?.id,
+      },
+    });
+
+    res.status(StatusCodes.CREATED).json({ msg: "Bank successfully added." });
   },
 };

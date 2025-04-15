@@ -114,7 +114,7 @@ model Company {
 
 model CompanyAccount {
   id              String     @id @default(uuid())
-  tenantId        String
+  tenantId        String @unique
   businessName    String
   businessEmail   String     @unique
   category        String?
@@ -204,14 +204,14 @@ model Otp {
 
 model User {
   id          String        @id @default(uuid())
-  tenantId    String // Links to Company.tenantId
+  tenantId    String        @unique
   first_name  String?
   last_name   String?
   email       String        @unique
   password    String
   phone       String?       @unique
   role        Role          @default(EMPLOYEE)
-  companyId   String?
+  companyId   String?       @unique
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   deletedAt   DateTime?
@@ -232,6 +232,7 @@ model UserBank {
   acctName         String?
   CompanyAccount   CompanyAccount? @relation(fields: [companyAccountId], references: [id])
   companyAccountId String?
+  AccountPaidTo    AccountPaidTo[]
 }
 
 model WebhookEvent {
@@ -381,18 +382,27 @@ model PaymentPlan {
 }
 
 model Payment {
-  id            String        @id @default(uuid())
-  totalAmount   Decimal       @db.Decimal(12, 2)
-  totalPay      Decimal       @db.Decimal(12, 2)
-  vat           Decimal       @default(0) @db.Decimal(12, 2)
-  balanceOwed   Decimal?      @default(0) @db.Decimal(12, 2)
-  paymentDate   DateTime      @default(now())
+  id            String         @id @default(uuid())
+  totalAmount   Decimal        @db.Decimal(12, 2)
+  totalPay      Decimal        @db.Decimal(12, 2)
+  vat           Decimal        @default(0) @db.Decimal(12, 2)
+  balanceOwed   Decimal?       @default(0) @db.Decimal(12, 2)
+  paymentDate   DateTime       @default(now())
   method        PaymentMethod
   paymentPlanId String?
-  PaymentPlan   PaymentPlan?  @relation(fields: [paymentPlanId], references: [id])
-  createdAt     DateTime      @default(now())
+  PaymentPlan   PaymentPlan?   @relation(fields: [paymentPlanId], references: [id])
+  createdAt     DateTime       @default(now())
+  acctPaidTo    AccountPaidTo?
 
   @@index([paymentDate])
+}
+
+model AccountPaidTo {
+  id         String    @id @default(uuid())
+  Payment    Payment?  @relation(fields: [paymentId], references: [id])
+  paymentId  String?   @unique
+  bank       UserBank? @relation(fields: [userBankId], references: [id])
+  userBankId String?   @unique
 }
 
 // Audit

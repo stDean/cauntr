@@ -16,6 +16,9 @@ router
     InventoryCtrl.createProducts
   );
 
+router.route("/banks").get(AuthMiddleware, InventoryCtrl.getAllBanks);
+router.route("/banks").post(AuthMiddleware, InventoryCtrl.createAllBanks);
+
 router.route("/summary").get(AuthMiddleware, InventoryCtrl.getInventorySummary);
 router.route("/all").get(AuthMiddleware, InventoryCtrl.getAllProducts);
 router

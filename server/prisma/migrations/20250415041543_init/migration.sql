@@ -38,6 +38,7 @@ CREATE TABLE `CompanyAccount` (
     `updatedAt` DATETIME(3) NOT NULL,
     `companyId` VARCHAR(191) NOT NULL,
 
+    UNIQUE INDEX `CompanyAccount_tenantId_key`(`tenantId`),
     UNIQUE INDEX `CompanyAccount_businessEmail_key`(`businessEmail`),
     UNIQUE INDEX `CompanyAccount_companyId_key`(`companyId`),
     INDEX `CompanyAccount_id_idx`(`id`),
@@ -140,8 +141,10 @@ CREATE TABLE `User` (
     `updatedAt` DATETIME(3) NOT NULL,
     `deletedAt` DATETIME(3) NULL,
 
+    UNIQUE INDEX `User_tenantId_key`(`tenantId`),
     UNIQUE INDEX `User_email_key`(`email`),
     UNIQUE INDEX `User_phone_key`(`phone`),
+    UNIQUE INDEX `User_companyId_key`(`companyId`),
     INDEX `User_id_idx`(`id`),
     INDEX `User_email_idx`(`email`),
     INDEX `User_tenantId_idx`(`tenantId`),
@@ -317,6 +320,17 @@ CREATE TABLE `Payment` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `AccountPaidTo` (
+    `id` VARCHAR(191) NOT NULL,
+    `paymentId` VARCHAR(191) NULL,
+    `userBankId` VARCHAR(191) NULL,
+
+    UNIQUE INDEX `AccountPaidTo_paymentId_key`(`paymentId`),
+    UNIQUE INDEX `AccountPaidTo_userBankId_key`(`userBankId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `AuditLog` (
     `id` VARCHAR(191) NOT NULL,
     `action` ENUM('CREATE', 'UPDATE', 'DELETE') NOT NULL,
@@ -393,6 +407,12 @@ ALTER TABLE `PaymentPlan` ADD CONSTRAINT `PaymentPlan_transactionId_fkey` FOREIG
 
 -- AddForeignKey
 ALTER TABLE `Payment` ADD CONSTRAINT `Payment_paymentPlanId_fkey` FOREIGN KEY (`paymentPlanId`) REFERENCES `PaymentPlan`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `AccountPaidTo` ADD CONSTRAINT `AccountPaidTo_paymentId_fkey` FOREIGN KEY (`paymentId`) REFERENCES `Payment`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `AccountPaidTo` ADD CONSTRAINT `AccountPaidTo_userBankId_fkey` FOREIGN KEY (`userBankId`) REFERENCES `UserBank`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `AuditLog` ADD CONSTRAINT `AuditLog_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

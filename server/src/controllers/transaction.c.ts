@@ -66,6 +66,12 @@ interface SellProductRequest {
   };
   vat: number;
   totalPay: number;
+  acctPaidTo?: {
+    bankName: string;
+    acctNo: string;
+    acctName: string;
+    userBankId?: string;
+  };
 }
 
 // Helper functions
@@ -167,6 +173,7 @@ export const getSoldOrSwapProducts = async ({
       },
       Customer: true,
       createdBy: true,
+      Payments: { include: { payments: true } },
     },
   });
 
@@ -203,12 +210,64 @@ export const soldOrSwapByID = async ({
       },
       Customer: true,
       createdBy: true,
+      Payments: {
+        include: {
+          payments: { include: { acctPaidTo: { include: { bank: true } } } },
+        },
+      },
     },
   });
 
   if (!transaction) throw new NotFoundError("Transaction not found.");
 
   return { transaction };
+};
+
+export const generateSalesReport = (transactions: any) => {
+  const report = {
+    totalSales: 0,
+    categories: new Set(),
+    totalStockSold: 0,
+    topSellingProduct: { name: "", quantity: 0 },
+    productQuantities: {} as Record<string, number>,
+  };
+
+  transactions.forEach((transaction: any) => {
+    // Calculate total sales
+    transaction.Payments.forEach((payment: any) => {
+      payment.payments.forEach((p: any) => {
+        report.totalSales += parseFloat(p.totalPay) || 0;
+      });
+    });
+
+    // Process transaction items
+    transaction.TransactionItem.forEach((item: any) => {
+      // Track categories
+      report.categories.add(item.Product.productType);
+
+      // Calculate total stock sold
+      report.totalStockSold += item.quantity;
+
+      // Track product quantities
+      const productName = item.Product.productName;
+      report.productQuantities[productName] =
+        (report.productQuantities[productName] || 0) + item.quantity;
+    });
+  });
+
+  // Find top selling product
+  report.topSellingProduct = Object.entries(report.productQuantities).reduce(
+    (max, [name, quantity]) =>
+      quantity > max.quantity ? { name, quantity } : max,
+    { name: "", quantity: 0 }
+  );
+
+  return {
+    totalSales: Number(report.totalSales.toFixed(2)),
+    categories: report.categories.size,
+    totalStockSold: report.totalStockSold,
+    topSellingProduct: report.topSellingProduct,
+  };
 };
 
 export const TransactionsCtrl = {
@@ -236,6 +295,7 @@ export const TransactionsCtrl = {
       customerDetails,
       vat,
       totalPay,
+      acctPaidTo,
     } = body as SellProductRequest;
     // Add validation for required fields
     validationUtils.validateRequiredFields(body, ["transaction"]);
@@ -293,6 +353,8 @@ export const TransactionsCtrl = {
         transId: transaction.id,
         vat,
         totalPay,
+        acctPaidTo:
+          payment.paymentMethod === "BANK_TRANSFER" ? acctPaidTo : undefined,
       });
 
       res.status(StatusCodes.OK).json({
@@ -384,6 +446,10 @@ export const TransactionsCtrl = {
         transId: transaction.id,
         vat: body.vat,
         totalPay: body.totalPay,
+        acctPaidTo:
+          body.payment.paymentMethod === "BANK_TRANSFER"
+            ? body.acctPaidTo
+            : undefined,
       });
 
       res.status(StatusCodes.OK).json({
@@ -495,11 +561,25 @@ export const TransactionsCtrl = {
       inArray: ["SALE", "BULK_SALE"],
     });
 
+    const transactionSummary = generateSalesReport(transactions);
+
+    const returnedData = transactions.map((transaction) => {
+      return {
+        transactionId: transaction.id,
+        employee: `${transaction.createdBy?.first_name} ${transaction.createdBy.last_name}`,
+        email: transaction.createdBy?.email,
+        salesType: transaction.type,
+        transactionDate: transaction.createdAt,
+        itemCount: transaction.TransactionItem.length,
+      };
+    });
+
     res.status(StatusCodes.OK).json({
       success: true,
       msg: "Products sold successfully",
-      data: transactions,
+      data: returnedData,
       nbHits: transactions.length,
+      transactionSummary,
     });
   },
 
@@ -547,10 +627,37 @@ export const TransactionsCtrl = {
       id: req.params.transactionId,
     });
 
+    const salesSummary = transaction.TransactionItem.map((item) => ({
+      productName: item.Product.productName,
+      qty: item.quantity,
+      price: item.pricePerUnit,
+    }));
+
+    const paymentHistory = transaction.Payments[0].payments.map((pay) => ({
+      date: pay.createdAt,
+      amount: pay.totalAmount,
+      modeOfPay: pay.method,
+    }));
+
+    const returnedData = {
+      soldBy: {
+        name: `${transaction.createdBy.first_name} ${transaction.createdBy.last_name}`,
+        type: transaction.type,
+      },
+      customer: {
+        name: transaction.Customer?.name,
+        email: transaction.Customer?.email,
+        phone: transaction.Customer?.phone,
+      },
+      salesSummary: salesSummary,
+      paymentHistory: paymentHistory,
+      totalPay: transaction.Payments[0].payments[0].totalPay,
+    };
+
     res.status(StatusCodes.OK).json({
       success: true,
       msg: "Sold transaction found.",
-      data: transaction,
+      data: returnedData,
     });
   },
 
@@ -631,7 +738,7 @@ export const TransactionsCtrl = {
    * - Return a JSON response containing the updated transaction item and payment plan details.
    */
   updateProductBalance: async (req: Request, res: Response) => {
-    const { amount, method } = req.body;
+    const { amount, method, acctPaidTo } = req.body;
     const { company } = await userNdCompany(req.user);
     if (!company) throw new BadRequestError("Company not found.");
 
@@ -694,6 +801,25 @@ export const TransactionsCtrl = {
               Number(
                 product?.Transaction?.Payments?.[0]?.payments?.[0]?.totalPay
               ),
+            acctPaidTo:
+              method === "BANK_TRANSFER"
+                ? {
+                    connectOrCreate: {
+                      where: {
+                        userBankId: acctPaidTo?.userBankId,
+                      },
+                      create: {
+                        bank: {
+                          create: {
+                            bankName: acctPaidTo?.bankName || "",
+                            acctNo: acctPaidTo?.acctNo || "",
+                            acctName: acctPaidTo?.acctName || "",
+                          },
+                        },
+                      },
+                    },
+                  }
+                : undefined,
           },
         },
       },
