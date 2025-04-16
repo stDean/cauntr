@@ -491,6 +491,7 @@ export const UserCtrl = {
         email: customer.email,
         phone: customer.phone,
         transactionCount: transactionCounts.get(customer.id) || 0,
+        dateAdded: customer.createdAt,
       })),
     };
 
@@ -592,6 +593,7 @@ export const UserCtrl = {
         email: customer!.email,
         phone: customer!.phone,
         transactionCount: customer!.Transaction.length,
+        dateAdded: customer!.createdAt,
       };
     });
 
@@ -686,11 +688,12 @@ export const UserCtrl = {
         name: supplier.name,
         contact: supplier.contact,
         email: supplier.email,
-        createdAt: supplier.createdAt,
         supplyCount: supplier.products.reduce(
           (acc, product) => acc + product.quantity,
           0
         ),
+        productCount: supplier.products.length,
+        dateAdded: supplier.createdAt,
       };
     });
 
