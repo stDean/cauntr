@@ -137,7 +137,7 @@ export const InventoryCtrl = {
           const supplier = suppliers.find(
             (s) =>
               s.name === product["Supplier Name"] &&
-              s.contact === product["Supplier Phone Number"]
+              s.contact === String(product["Supplier Phone Number"])
           );
 
           // if (!supplier) throw new BadRequestError("Supplier not found");

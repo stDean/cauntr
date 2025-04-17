@@ -65,7 +65,12 @@ const getCustomerAndDebtorTransaction = async ({
       Payments: {
         select: {
           payments: {
-            select: { method: true, paymentDate: true, balanceOwed: true },
+            select: {
+              method: true,
+              paymentDate: true,
+              balanceOwed: true,
+              totalPay: true,
+            },
           },
         },
       },
@@ -76,7 +81,19 @@ const getCustomerAndDebtorTransaction = async ({
 
   // If no transactions were found, return an empty result.
   if (transactions.length === 0) {
-    data = { customerData: [], products: [] };
+    const customer = await prisma.customer.findUnique({
+      where: { id, companyId, tenantId },
+    });
+    data = {
+      customerData: {
+        name: customer?.name,
+        email: customer?.email,
+        phone: customer?.phone,
+        address: customer?.address,
+      },
+      products: [],
+      buyCount: 0,
+    };
     return { data };
   }
 
@@ -98,10 +115,11 @@ const getCustomerAndDebtorTransaction = async ({
       transactionType: transaction.type,
       balanceOwed: payment?.balanceOwed ? payment?.balanceOwed : null,
       itemId: item.id,
+      paidPrice: payment.totalPay,
     }));
   });
 
-  data = { customerData, products };
+  data = { customerData, products, buyCount: products.length };
 
   return { data };
 };
@@ -728,6 +746,7 @@ export const UserCtrl = {
             sellingPrice: true,
             createdAt: true,
             quantity: true,
+            serialNo: true,
           },
         },
       },
@@ -739,16 +758,22 @@ export const UserCtrl = {
       name: supplier.name,
       contact: supplier.contact,
       email: supplier.email,
+      address: supplier.warehouseAddress,
+      count: supplier.products.length,
       supplyCount: supplier.products.reduce(
         (acc, product) => acc + product.quantity,
         0
       ),
-      products: supplier.products.map(({ sellingPrice, ...product }) => {
-        return {
-          ...product,
-          pricePerUnit: sellingPrice,
-        };
-      }),
+      products: supplier.products.map(
+        ({ sellingPrice, quantity, serialNo, ...product }) => {
+          return {
+            ...product,
+            pricePerUnit: sellingPrice,
+            status: quantity > 0 ? "Available" : "Sold Out",
+            serialNo,
+          };
+        }
+      ),
     };
 
     res.status(StatusCodes.CREATED).json({ data: returnedData, success: true });

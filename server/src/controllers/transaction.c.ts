@@ -711,16 +711,43 @@ export const TransactionsCtrl = {
             // Supplier: true,
           },
         },
-        // Transaction: { include: { Customer: true } },
+        Transaction: {
+          include: {
+            Customer: true,
+            Payments: {
+              include: {
+                payments: { orderBy: { createdAt: "desc" } },
+              },
+            },
+          },
+        },
       },
     });
 
     if (!product) throw new NotFoundError("Product not found.");
 
+    const returnedData = {
+      salesDetails: {
+        customerName: product.Transaction.Customer?.name,
+        salesAmount: product.Transaction.Payments[0].payments[0].totalAmount,
+        balanceOwed: product.Transaction.Payments[0].payments[0].balanceOwed,
+        salesType: product.Transaction.type,
+        itemId: req.params.itemId,
+        alreadyPaid: product.Transaction.Payments[0].payments[0].totalPay,
+      },
+      paymentHistory: product.Transaction.Payments[0].payments
+        .filter((p) => p.balancePaid !== null && Number(p.balancePaid) !== 0)
+        .map((p) => ({
+          paymentDate: p.createdAt,
+          amount: p.totalPay,
+          balancePaid: p.balancePaid,
+        })),
+    };
+
     res.status(StatusCodes.OK).json({
       success: true,
       msg: "Sold product found.",
-      data: product,
+      data: returnedData,
     });
   },
 
@@ -790,12 +817,11 @@ export const TransactionsCtrl = {
               ? method.toUpperCase()
               : (product?.Transaction?.Payments?.[0]?.payments?.[0]
                   ?.method as PaymentMethod),
-            totalAmount:
-              Number(amount) +
-              Number(
-                product?.Transaction?.Payments?.[0]?.payments?.[0]?.totalAmount
-              ),
+            totalAmount: Number(
+              product?.Transaction?.Payments?.[0]?.payments?.[0]?.totalAmount
+            ),
             balanceOwed: balance,
+            balancePaid: Number(amount),
             totalPay:
               Number(amount) +
               Number(
@@ -827,7 +853,7 @@ export const TransactionsCtrl = {
 
     res.status(StatusCodes.OK).json({
       success: true,
-      msg: "Product balance successfully updated",
+      msg: "Product balance successfully submitted",
       // data: { product, plan },
     });
   },
