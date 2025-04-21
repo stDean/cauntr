@@ -349,6 +349,24 @@ CREATE TABLE `AuditLog` (
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
+-- CreateTable
+CREATE TABLE `Invoice` (
+    `id` VARCHAR(191) NOT NULL,
+    `invoiceNo` VARCHAR(191) NOT NULL,
+    `tenantId` VARCHAR(191) NOT NULL,
+    `status` ENUM('DRAFT', 'PAID', 'PART_PAID', 'OVERDUE') NOT NULL DEFAULT 'DRAFT',
+    `paymentDate` DATETIME(3) NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `companyId` VARCHAR(191) NULL,
+    `transactionId` VARCHAR(191) NULL,
+
+    UNIQUE INDEX `Invoice_invoiceNo_key`(`invoiceNo`),
+    UNIQUE INDEX `Invoice_transactionId_key`(`transactionId`),
+    INDEX `Invoice_invoiceNo_idx`(`invoiceNo`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
 -- AddForeignKey
 ALTER TABLE `CompanyAccount` ADD CONSTRAINT `CompanyAccount_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -417,3 +435,9 @@ ALTER TABLE `AccountPaidTo` ADD CONSTRAINT `AccountPaidTo_userBankId_fkey` FOREI
 
 -- AddForeignKey
 ALTER TABLE `AuditLog` ADD CONSTRAINT `AuditLog_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Invoice` ADD CONSTRAINT `Invoice_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Invoice` ADD CONSTRAINT `Invoice_transactionId_fkey` FOREIGN KEY (`transactionId`) REFERENCES `Transaction`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;

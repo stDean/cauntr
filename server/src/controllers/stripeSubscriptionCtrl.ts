@@ -44,7 +44,6 @@ export const StripeCtrl = {
   createSubscription: async (req: Request, res: Response): Promise<void> => {
     const { companySubscription, company } = await checkSub(req.user.companyId);
     const tier = `${req.body.tier}_${req.body.tierType}`;
-    console.log({ ...req.body, tier });
 
     const url = await StripeService.createCheckoutSession(
       companySubscription,

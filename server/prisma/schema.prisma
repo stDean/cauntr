@@ -77,6 +77,13 @@ enum AuditAction {
   DELETE
 }
 
+enum InvoiceStatus {
+  DRAFT
+  PAID
+  PART_PAID
+  OVERDUE
+}
+
 // ========================
 // Models
 // ========================
@@ -106,6 +113,7 @@ model Company {
   CompanyStripeSubscription CompanyStripeSubscription?
   Notification              Notification[]
   CompanyAccount            CompanyAccount?
+  Invoice                   Invoice[]
 
   @@index([company_email])
   @@index([id])
@@ -323,6 +331,7 @@ model Transaction {
   Customer        Customer?         @relation(fields: [customerId], references: [id])
   customerId      String?
   Payments        PaymentPlan[]
+  Invoice         Invoice?
 
   @@index([companyId])
   @@index([type])
@@ -422,4 +431,20 @@ model AuditLog {
 
   @@index([tenantId])
   @@index([companyId])
+}
+
+model Invoice {
+  id            String        @id @default(uuid())
+  invoiceNo     String        @unique
+  tenantId      String
+  status        InvoiceStatus @default(DRAFT)
+  paymentDate   DateTime
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  Company       Company?      @relation(fields: [companyId], references: [id])
+  companyId     String?
+  Transaction   Transaction?  @relation(fields: [transactionId], references: [id])
+  transactionId String?       @unique
+
+  @@index([invoiceNo])
 }

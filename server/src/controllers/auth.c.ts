@@ -3,20 +3,15 @@ import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
 import {
   BadRequestError,
-  CustomAPIError,
-  UnauthenticatedError,
+  CustomAPIError
 } from "../errors";
+import { emailService } from "../services/emailService";
 import {
   createJWT,
   generateVerificationToken,
   handleOtpForCompany,
 } from "../utils/authHelpers.h";
-import { my_plans } from "../utils/constants";
 import { prisma } from "../utils/prisma.h";
-import { emailService } from "../services/emailService";
-import { paystackService } from "../services/paystackService";
-import { Tier } from "@prisma/client";
-import jwt from "jsonwebtoken";
 
 const checkOTP = async ({ email }: { email: string }): Promise<any> => {
   const existingToken = await prisma.otp.findFirst({

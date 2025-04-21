@@ -20,6 +20,7 @@ import {
 } from "../utils/helperUtils";
 import { prisma } from "../utils/prisma.h";
 import { supplierService } from "../services/supplierService";
+import { emailService } from "../services/emailService";
 
 interface SwapProductRequest {
   outgoing: { sku: string; quantity: number };
@@ -343,6 +344,20 @@ export const TransactionsCtrl = {
         }
       );
 
+      const createdInvoice = await tx.invoice.create({
+        data: {
+          invoiceNo: "single_sale-101",
+          paymentDate: transaction.createdAt,
+          tenantId: company.tenantId,
+          companyId: company.id,
+          transactionId: transaction.id,
+          status:
+            payment.balanceOwed && Number(payment.balanceOwed) !== 0
+              ? "PART_PAID"
+              : "PAID",
+        },
+      });
+
       const paymentPlan = await paymentUtils.createPaymentPlan(tx, {
         customerId: customer && customer.id,
         ...payment,
@@ -356,6 +371,11 @@ export const TransactionsCtrl = {
         acctPaidTo:
           payment.paymentMethod === "BANK_TRANSFER" ? acctPaidTo : undefined,
       });
+
+      // TODO:SEND Invoice to customer email
+      if (customerDetails && customerDetails.email) {
+        emailService.sendInvoice(createdInvoice.invoiceNo);
+      }
 
       res.status(StatusCodes.OK).json({
         success: true,
@@ -433,6 +453,22 @@ export const TransactionsCtrl = {
         }
       );
 
+      const createdInvoice = await tx.invoice.create({
+        data: {
+          invoiceNo: "bulk_invoice-101",
+          paymentDate: transaction.createdAt,
+          tenantId: company.tenantId,
+          companyId: company.id,
+          transactionId: transaction.id,
+          status:
+            body.payment.balanceOwed && Number(body.payment.balanceOwed) !== 0
+              ? "PART_PAID"
+              : "PAID",
+        },
+      });
+
+      console.log({ a: createdInvoice.invoiceNo });
+
       const amountPaid = body.transactions.reduce((acc: number, txn: any) => {
         return acc + txn.sellingPrice * txn.quantity;
       }, 0);
@@ -451,6 +487,11 @@ export const TransactionsCtrl = {
             ? body.acctPaidTo
             : undefined,
       });
+
+      if (body.customerDetails && body.customerDetails.email) {
+        emailService.sendInvoice(createdInvoice.invoiceNo);
+        console.log("Sending Invoice to: ", body.customerDetails.email);
+      }
 
       res.status(StatusCodes.OK).json({
         success: true,
