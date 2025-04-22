@@ -12,6 +12,9 @@ import { BadRequestError, NotFoundError } from "../errors";
 import { generateSKU, userNdCompany } from "../utils/helper";
 import {
   customerUtils,
+  generateInvoice,
+  generateInvoiceNo,
+  getPrevInvoiceNo,
   paymentUtils,
   ProductOperation,
   productUtils,
@@ -303,7 +306,7 @@ export const TransactionsCtrl = {
 
     const { company, user: authUser } = await userNdCompany(user);
 
-    return prisma.$transaction(async (tx) => {
+    const transactionRes = await prisma.$transaction(async (tx) => {
       const product = await productUtils.findProductBySKU(
         tx,
         params.sku,
@@ -344,20 +347,6 @@ export const TransactionsCtrl = {
         }
       );
 
-      const createdInvoice = await tx.invoice.create({
-        data: {
-          invoiceNo: "single_sale-101",
-          paymentDate: transaction.createdAt,
-          tenantId: company.tenantId,
-          companyId: company.id,
-          transactionId: transaction.id,
-          status:
-            payment.balanceOwed && Number(payment.balanceOwed) !== 0
-              ? "PART_PAID"
-              : "PAID",
-        },
-      });
-
       const paymentPlan = await paymentUtils.createPaymentPlan(tx, {
         customerId: customer && customer.id,
         ...payment,
@@ -372,16 +361,35 @@ export const TransactionsCtrl = {
           payment.paymentMethod === "BANK_TRANSFER" ? acctPaidTo : undefined,
       });
 
-      // TODO:SEND Invoice to customer email
-      if (customerDetails && customerDetails.email) {
-        emailService.sendInvoice(createdInvoice.invoiceNo);
-      }
-
-      res.status(StatusCodes.OK).json({
-        success: true,
-        data: { transaction, customer, paymentPlan },
-        msg: `Product with sku: ${params.sku} successfully sold`,
+      const invoiceNumber = await generateInvoiceNo({
+        companyId: company.id,
+        tenantId: company.tenantId,
       });
+
+      const createdInvoice = await tx.invoice.create({
+        data: {
+          invoiceNo: invoiceNumber,
+          paymentDate: transaction.createdAt,
+          tenantId: company.tenantId,
+          companyId: company.id,
+          transactionId: transaction.id,
+          status:
+            payment.balanceOwed && Number(payment.balanceOwed) !== 0
+              ? "PART_PAID"
+              : "PAID",
+        },
+      });
+
+      return { createdInvoice };
+    });
+
+    if (customerDetails && customerDetails.email) {
+      await emailService.sendInvoice(transactionRes.createdInvoice.invoiceNo);
+    }
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      msg: `Product with sku: ${params.sku} successfully sold`,
     });
   },
 
@@ -409,95 +417,100 @@ export const TransactionsCtrl = {
 
     validationUtils.validateRequiredFields(body, ["transactions"]);
 
-    return prisma.$transaction(async (tx) => {
-      const products = await Promise.all(
-        body.transactions.map((txn: ProductOperation) =>
-          productUtils.findProductBySKU(tx, txn.sku, company)
-        )
-      );
-
-      validationUtils.validateStockQuantities(products, body.transactions);
-
-      await Promise.all(
-        body.transactions.map((txn: ProductOperation) =>
-          productUtils.updateProductQuantity(
-            tx,
-            products.find((p) => p.sku === txn.sku)!.id,
-            -txn.quantity
+    const { createdInvoice, customerDetails } = await prisma.$transaction(
+      async (tx) => {
+        const products = await Promise.all(
+          body.transactions.map((txn: ProductOperation) =>
+            productUtils.findProductBySKU(tx, txn.sku, company)
           )
-        )
-      );
-
-      let customer;
-      if (body.customerDetails) {
-        customer = await customerUtils.upsertCustomer(
-          tx,
-          body.customerDetails,
-          company
         );
-      }
 
-      const transaction = await transactionUtils.createTransaction(
-        tx,
-        TransactionType.BULK_SALE,
-        {
-          company,
-          userId: authUser.id,
-          customerId: customer && customer.id,
-          items: body.transactions.map((txn: ProductOperation) => ({
-            productId: products.find((p) => p.sku === txn.sku)!.id,
-            quantity: txn.quantity,
-            pricePerUnit: txn.sellingPrice || 0,
-            direction: Direction.DEBIT,
-          })),
+        validationUtils.validateStockQuantities(products, body.transactions);
+
+        await Promise.all(
+          body.transactions.map((txn: ProductOperation) =>
+            productUtils.updateProductQuantity(
+              tx,
+              products.find((p) => p.sku === txn.sku)!.id,
+              -txn.quantity
+            )
+          )
+        );
+
+        let customer;
+        if (body.customerDetails) {
+          customer = await customerUtils.upsertCustomer(
+            tx,
+            body.customerDetails,
+            company
+          );
         }
-      );
 
-      const createdInvoice = await tx.invoice.create({
-        data: {
-          invoiceNo: "bulk_invoice-101",
-          paymentDate: transaction.createdAt,
-          tenantId: company.tenantId,
+        const transaction = await transactionUtils.createTransaction(
+          tx,
+          TransactionType.BULK_SALE,
+          {
+            company,
+            userId: authUser.id,
+            customerId: customer && customer.id,
+            items: body.transactions.map((txn: ProductOperation) => ({
+              productId: products.find((p) => p.sku === txn.sku)!.id,
+              quantity: txn.quantity,
+              pricePerUnit: txn.sellingPrice || 0,
+              direction: Direction.DEBIT,
+            })),
+          }
+        );
+
+        const invoiceNumber = await generateInvoiceNo({
           companyId: company.id,
-          transactionId: transaction.id,
-          status:
-            body.payment.balanceOwed && Number(body.payment.balanceOwed) !== 0
-              ? "PART_PAID"
-              : "PAID",
-        },
-      });
+          tenantId: company.tenantId,
+        });
 
-      console.log({ a: createdInvoice.invoiceNo });
+        const createdInvoice = await tx.invoice.create({
+          data: {
+            invoiceNo: invoiceNumber,
+            paymentDate: transaction.createdAt,
+            tenantId: company.tenantId,
+            companyId: company.id,
+            transactionId: transaction.id,
+            status:
+              body.payment.balanceOwed && Number(body.payment.balanceOwed) !== 0
+                ? "PART_PAID"
+                : "PAID",
+          },
+        });
 
-      const amountPaid = body.transactions.reduce((acc: number, txn: any) => {
-        return acc + txn.sellingPrice * txn.quantity;
-      }, 0);
+        const amountPaid = body.transactions.reduce((acc: number, txn: any) => {
+          return acc + txn.sellingPrice * txn.quantity;
+        }, 0);
 
-      const paymentPlan = await paymentUtils.createPaymentPlan(tx, {
-        customerId: customer && customer.id,
-        ...body.payment,
-        amountPaid: amountPaid,
-        balanceOwed: body.payment.balanceOwed,
-        frequency: body.payment.frequency,
-        transId: transaction.id,
-        vat: body.vat,
-        totalPay: body.totalPay,
-        acctPaidTo:
-          body.payment.paymentMethod === "BANK_TRANSFER"
-            ? body.acctPaidTo
-            : undefined,
-      });
+        const paymentPlan = await paymentUtils.createPaymentPlan(tx, {
+          customerId: customer && customer.id,
+          ...body.payment,
+          amountPaid: amountPaid,
+          balanceOwed: body.payment.balanceOwed,
+          frequency: body.payment.frequency,
+          transId: transaction.id,
+          vat: body.vat,
+          totalPay: body.totalPay,
+          acctPaidTo:
+            body.payment.paymentMethod === "BANK_TRANSFER"
+              ? body.acctPaidTo
+              : undefined,
+        });
 
-      if (body.customerDetails && body.customerDetails.email) {
-        emailService.sendInvoice(createdInvoice.invoiceNo);
-        console.log("Sending Invoice to: ", body.customerDetails.email);
+        return { createdInvoice, customerDetails: body.customerDetails };
       }
+    );
 
-      res.status(StatusCodes.OK).json({
-        success: true,
-        data: { transaction, customer, paymentPlan },
-        msg: "Products successfully sold.",
-      });
+    if (customerDetails && customerDetails.email) {
+      await emailService.sendInvoice(createdInvoice.invoiceNo);
+    }
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      msg: "Products successfully sold.",
     });
   },
 
@@ -891,6 +904,8 @@ export const TransactionsCtrl = {
         },
       },
     });
+
+    // TODO:Update Invoice and send a follow up invoice to the customer
 
     res.status(StatusCodes.OK).json({
       success: true,

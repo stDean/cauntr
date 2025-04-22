@@ -1,9 +1,14 @@
 import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
+import {
+  BadRequestError,
+  NotFoundError,
+  UnauthenticatedError,
+} from "../errors";
+import { emailService } from "../services/emailService";
 import { userNdCompany } from "../utils/helper";
-import { UnauthenticatedError } from "../errors";
 import { prisma } from "../utils/prisma.h";
-import { TransactionType } from "@prisma/client";
+import { generateInvoiceNo } from "../utils/helperUtils";
 
 export const InvoiceCtrl = {
   createInvoice: async (req: Request, res: Response) => {
@@ -14,7 +19,7 @@ export const InvoiceCtrl = {
     return prisma.$transaction(async (tx) => {
       const {
         customerDetails: { name, phone, email, address },
-        payment: { method, totalPay, totalAmount, paymentDate, vat },
+        payment: { method, totalAmount, paymentDate, vat },
       } = body;
 
       const customer = await tx.customer.upsert({
@@ -54,7 +59,7 @@ export const InvoiceCtrl = {
       await tx.payment.create({
         data: {
           method: method.toUpperCase(),
-          totalPay,
+          totalPay: 0,
           totalAmount,
           acctPaidTo:
             method.toUpperCase() === "CASH"
@@ -87,9 +92,14 @@ export const InvoiceCtrl = {
         },
       });
 
+      const invoiceNumber = await generateInvoiceNo({
+        companyId: company.id,
+        tenantId: company.tenantId,
+      });
+
       const createdInvoice = await tx.invoice.create({
         data: {
-          invoiceNo: "createdInvoice001",
+          invoiceNo: invoiceNumber,
           paymentDate: new Date(paymentDate),
           tenantId: company.tenantId,
           companyId: company.id,
@@ -99,18 +109,197 @@ export const InvoiceCtrl = {
       });
 
       res
-        .status(StatusCodes.OK)
+        .status(StatusCodes.CREATED)
         .json({ msg: "Invoice successfully created", createdInvoice });
     });
   },
 
-  getInvoices: async (req: Request, res: Response) => {},
+  getInvoices: async (req: Request, res: Response) => {
+    const { company } = await userNdCompany(req.user);
+    if (!company) throw new UnauthenticatedError("No company found");
 
-  getInvoice: async (req: Request, res: Response) => {},
+    const invoices = await prisma.invoice.findMany({
+      where: { companyId: company.id, tenantId: company.tenantId },
+      include: {
+        Transaction: {
+          include: {
+            Payments: {
+              include: { payments: { orderBy: { createdAt: "desc" } } },
+            },
+          },
+        },
+      },
+    });
 
-  resendInvoice: async (req: Request, res: Response) => {},
+    res
+      .status(StatusCodes.OK)
+      .json({ msg: "Success", data: invoices, nbHits: invoices.length });
+  },
 
-  markAsPaid: async (req: Request, res: Response) => {},
+  getInvoice: async (req: Request, res: Response) => {
+    const {
+      user,
+      params: { invoiceNo },
+    } = req;
+    const { company } = await userNdCompany(user);
+    if (!company) throw new UnauthenticatedError("No company found");
 
-  recordPayment: async (req: Request, res: Response) => {},
+    const invoice = await prisma.invoice.findUnique({
+      where: { invoiceNo, tenantId: company.tenantId, companyId: company.id },
+      include: {
+        Transaction: {
+          include: {
+            Payments: {
+              include: { payments: { orderBy: { createdAt: "desc" } } },
+            },
+          },
+        },
+      },
+    });
+    if (!invoice) throw new NotFoundError("Invoice does not exist");
+
+    res.status(StatusCodes.OK).json({ msg: "Success", data: invoice });
+  },
+
+  resendInvoice: async (req: Request, res: Response) => {
+    const {
+      user,
+      params: { invoiceNo },
+    } = req;
+    const { company } = await userNdCompany(user);
+    if (!company) throw new UnauthenticatedError("No company found");
+
+    await emailService.sendInvoice(invoiceNo);
+
+    res.status(StatusCodes.OK).json({ msg: "Email sent successfully!" });
+  },
+
+  markAsPaid: async (req: Request, res: Response) => {
+    const {
+      user,
+      params: { invoiceNo, paymentId, planId },
+    } = req;
+    const { company } = await userNdCompany(user);
+    if (!company) throw new UnauthenticatedError("No company found");
+
+    const getPayment = await prisma.payment.findUnique({
+      where: { id: paymentId },
+      select: { totalAmount: true },
+    });
+
+    const updatedInvoice = await prisma.invoice.update({
+      where: { invoiceNo, tenantId: company.tenantId, companyId: company.id },
+      data: {
+        paymentDate: new Date(),
+        status: "PAID",
+        Transaction: {
+          update: {
+            Payments: {
+              update: {
+                where: { id: planId },
+                data: {
+                  customerType: "CUSTOMER",
+                  payments: {
+                    update: {
+                      where: { id: paymentId },
+                      data: { totalPay: getPayment?.totalAmount },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    res
+      .status(StatusCodes.OK)
+      .json({ msg: "Invoice successfully paid.", data: updatedInvoice });
+  },
+
+  recordPayment: async (req: Request, res: Response) => {
+    const {
+      user,
+      params: { invoiceNo, planId },
+      body: { amount, method, paymentMethod },
+    } = req;
+    const { company } = await userNdCompany(user);
+    if (!company) throw new UnauthenticatedError("No company found");
+
+    return prisma.$transaction(async (tx) => {
+      const paymentPlan = await tx.paymentPlan.findUnique({
+        where: { id: planId },
+        include: { payments: { orderBy: { createdAt: "desc" } } },
+      });
+
+      if (Number(amount) > Number(paymentPlan?.payments[0].balanceOwed)) {
+        throw new BadRequestError("Cannot pay more than you owe.");
+      }
+
+      const payment = await tx.payment.create({
+        data: {
+          method: method.toUpperCase(),
+          totalPay: Number(amount) + Number(paymentPlan?.payments[0].totalPay),
+          balanceOwed:
+            Number(paymentPlan?.payments[0].balanceOwed) - Number(amount),
+          acctPaidTo:
+            method.toUpperCase() === "CASH"
+              ? undefined
+              : {
+                  connectOrCreate: {
+                    where: { userBankId: paymentMethod.userBankId },
+                    create: {
+                      bank: {
+                        create: {
+                          bankName: paymentMethod.bankName,
+                          acctName: paymentMethod.acctName,
+                          acctNo: paymentMethod.acctNo,
+                        },
+                      },
+                    },
+                  },
+                },
+          totalAmount: paymentPlan?.payments[0].totalAmount!,
+          balancePaid: Number(amount),
+        },
+      });
+
+      const updatedInvoice = await tx.invoice.update({
+        where: { invoiceNo, tenantId: company.tenantId, companyId: company.id },
+        data: {
+          paymentDate: new Date(),
+          status:
+            Number(paymentPlan?.payments[0].balanceOwed) - Number(amount) === 0
+              ? "PAID"
+              : "PART_PAID",
+          Transaction: {
+            update: {
+              Payments: {
+                update: {
+                  where: { id: planId },
+                  data: {
+                    customerType:
+                      Number(paymentPlan?.payments[0].balanceOwed) -
+                        Number(amount) ===
+                      0
+                        ? "CUSTOMER"
+                        : "DEBTOR",
+                    payments: {
+                      connect: { id: payment.id },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      res.status(StatusCodes.OK).json({
+        msg: `Payment of ${amount} successful.`,
+        updatedInvoice,
+      });
+    });
+  },
 };

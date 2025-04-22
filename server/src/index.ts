@@ -14,6 +14,7 @@ import PayStackWebhook from "./webhook/paystack.w.js";
 import { ScheduleJob } from "./jobs/schedule.j.js";
 import { scheduleJob } from "node-schedule";
 import StripeWebhook from "./webhook/stripe.w.js";
+import { InvoiceJobs } from "./jobs/InvoiceJob.j.js";
 
 const app: Application = express();
 dotenv.config();
@@ -53,6 +54,7 @@ function initializeSubscriptionJobs() {
     try {
       console.log("Checking for pending subscription updates...");
       await ScheduleJob.processPendingSubscriptions();
+      await InvoiceJobs.makeInvoiceOverDue();
     } catch (error) {
       console.error("Subscription update check failed:", error);
     }

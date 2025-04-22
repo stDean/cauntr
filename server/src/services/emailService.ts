@@ -111,25 +111,27 @@ export class EmailService {
       address: invoice?.Transaction?.Customer?.address,
     };
 
-    const res = invoice.Transaction?.TransactionItem.map((t) => ({
+    const res = invoice!.Transaction?.TransactionItem.map((t) => ({
       productName: t.Product.productName,
       price: t.Product.sellingPrice,
       qtyBought: t.quantity,
       total: t.totalPrice,
     }));
 
-    const balances = invoice.Transaction?.Payments[0].payments.map((p) => ({
+    const balances = invoice!.Transaction?.Payments[0].payments.map((p) => ({
       subTotal: p.totalAmount,
       balancedOwed: p.balanceOwed,
       totalPay: p.totalPay,
       vat: p.vat,
     }));
 
-    const bankPaidWith = invoice.Transaction?.Payments[0].payments.map((p) => ({
-      bankName: p.acctPaidTo?.bank?.bankName || null,
-      acctName: p.acctPaidTo?.bank?.acctName || null,
-      acctNo: p.acctPaidTo?.bank?.acctNo || null,
-    }));
+    const bankPaidWith = invoice!.Transaction?.Payments[0].payments.map(
+      (p) => ({
+        bankName: p.acctPaidTo?.bank?.bankName || null,
+        acctName: p.acctPaidTo?.bank?.acctName || null,
+        acctNo: p.acctPaidTo?.bank?.acctNo || null,
+      })
+    );
 
     const emailContent = generateInvoiceEmail(
       invoice, // From Prisma query

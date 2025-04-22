@@ -10,6 +10,8 @@ import {
 import { BadRequestError, NotFoundError } from "../errors";
 import { StatusCodes } from "http-status-codes";
 import { Response } from "express";
+import { InvoiceNumber } from "invoice-number";
+import { prisma } from "./prisma.h";
 
 export interface ProductInput {
   productName: string;
@@ -232,22 +234,25 @@ export const paymentUtils = {
             balanceOwed: config.balanceOwed ?? 0,
             vat: config.vat,
             totalPay: config.totalPay,
-            acctPaidTo: config.paymentMethod === "BANK_TRANSFER" ?{
-              connectOrCreate: {
-                where: {
-                  userBankId: config.acctPaidTo?.userBankId,
-                },
-                create: {
-                  bank: {
-                    create: {
-                      bankName: config.acctPaidTo?.bankName || "",
-                      acctNo: config.acctPaidTo?.acctNo || "",
-                      acctName: config.acctPaidTo?.acctName || "",
+            acctPaidTo:
+              config.paymentMethod === "BANK_TRANSFER"
+                ? {
+                    connectOrCreate: {
+                      where: {
+                        userBankId: config.acctPaidTo?.userBankId,
+                      },
+                      create: {
+                        bank: {
+                          create: {
+                            bankName: config.acctPaidTo?.bankName || "",
+                            acctNo: config.acctPaidTo?.acctNo || "",
+                            acctName: config.acctPaidTo?.acctName || "",
+                          },
+                        },
+                      },
                     },
-                  },
-                },
-              },
-            }: undefined,
+                  }
+                : undefined,
           },
         },
       },
@@ -314,3 +319,70 @@ export const validationUtils = {
     }
   },
 };
+
+export function generateInvoice({
+  previousInvoice,
+}: {
+  previousInvoice?: string;
+}) {
+  if (previousInvoice === undefined) {
+    previousInvoice = "INV-0001";
+  }
+  // Generate the next invoice number based on the previous one
+  const newInvoiceNumber = InvoiceNumber.next(previousInvoice);
+  return newInvoiceNumber;
+}
+
+export async function generateInvoiceNo({
+  companyId,
+  tenantId,
+}: {
+  companyId: string;
+  tenantId: string;
+}) {
+  const company = await prisma.company.findFirst({
+    where: { id: companyId, tenantId },
+  });
+  if (!company) throw new NotFoundError("Company does not exist");
+
+  const companyInitials = company.company_name
+    .split(" ")
+    .map((name) => name[0])
+    .join("");
+
+  const getYearAndDate = new Date();
+  const yearLastTwo = getYearAndDate.getFullYear().toString().substr(-2);
+  const month = (getYearAndDate.getMonth() + 1).toString().padStart(2, "0");
+  const getPrevInvoice = await prisma.invoice.findMany({
+    where: { companyId, tenantId },
+    orderBy: { invoiceNo: "desc" },
+    take: 1,
+  });
+  const prevInvoiceWithoutFirstFour = getPrevInvoice[0]?.invoiceNo.slice(5);
+
+  const prev = getPrevInvoice[0]?.invoiceNo
+    ? `${companyInitials}${yearLastTwo}-${prevInvoiceWithoutFirstFour}`
+    : `${companyInitials}${yearLastTwo}-${month}0000`;
+  const invoiceNumber = generateInvoice({ previousInvoice: prev });
+  return invoiceNumber;
+}
+
+export async function getPrevInvoiceNo({
+  companyId,
+  tenantId,
+}: {
+  companyId: string;
+  tenantId: string;
+}) {
+  const invoiceNos = await prisma.invoice.findMany({
+    where: { companyId, tenantId },
+    orderBy: { createdAt: "desc" },
+  });
+
+  console.log({ invoiceNos });
+  if (invoiceNos.length) {
+    return { previousInvoice: invoiceNos[0].invoiceNo };
+  }
+
+  return { previousInvoice: undefined };
+}

@@ -8,11 +8,11 @@ const router = Router();
 
 router
   .route("/all")
-  .get([AdminMiddleware, CheckActiveSubscription], InvoiceCtrl.getInvoices);
+  .get([AuthMiddleware, CheckActiveSubscription], InvoiceCtrl.getInvoices);
 
 router
   .route("/:invoiceNo")
-  .get([AdminMiddleware, CheckActiveSubscription], InvoiceCtrl.getInvoice);
+  .get([AuthMiddleware, CheckActiveSubscription], InvoiceCtrl.getInvoice);
 
 router
   .route("/create")
@@ -20,14 +20,14 @@ router
 
 router
   .route("/:invoiceNo/resend")
-  .patch([AuthMiddleware, CheckActiveSubscription], InvoiceCtrl.resendInvoice);
+  .post([AuthMiddleware, CheckActiveSubscription], InvoiceCtrl.resendInvoice);
 
 router
-  .route("/:invoiceNo/recordPay")
+  .route("/:invoiceNo/:planId/recordPay")
   .patch([AuthMiddleware, CheckActiveSubscription], InvoiceCtrl.recordPayment);
 
 router
-  .route("/:invoiceNo/markPaid")
+  .route("/:invoiceNo/:planId/:paymentId/markPaid")
   .patch([AuthMiddleware, CheckActiveSubscription], InvoiceCtrl.markAsPaid);
 
 export default router;
