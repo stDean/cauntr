@@ -188,7 +188,7 @@ const generateInvoiceEmail = (
       <p style="color: ${
         invoice.status === "PAID" ? "#5cb85c" : "#d9534f"
       }; margin: 5px 0 0;">
-        ${invoice.status}
+        ${invoice.status === "DRAFT" ? "Pending" : invoice.status}
       </p>
     </div>
     <div style="text-align: right;">

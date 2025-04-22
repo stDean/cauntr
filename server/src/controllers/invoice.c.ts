@@ -47,9 +47,9 @@ export const InvoiceCtrl = {
               const { productId, pricePerUnit, totalPrice, quantity } = product;
               return {
                 productId,
-                pricePerUnit,
-                totalPrice,
-                quantity,
+                pricePerUnit: Number(pricePerUnit),
+                totalPrice: Number(totalPrice),
+                quantity: Number(quantity),
               };
             }),
           },
@@ -60,7 +60,8 @@ export const InvoiceCtrl = {
         data: {
           method: method.toUpperCase(),
           totalPay: 0,
-          totalAmount,
+          totalAmount: Number(totalAmount),
+          balanceOwed: Number(totalAmount),
           acctPaidTo:
             method.toUpperCase() === "CASH"
               ? undefined
@@ -123,17 +124,29 @@ export const InvoiceCtrl = {
       include: {
         Transaction: {
           include: {
+            Customer: true,
             Payments: {
               include: { payments: { orderBy: { createdAt: "desc" } } },
             },
           },
         },
       },
+      orderBy: { invoiceNo: "asc" },
     });
+
+    const returnedData = invoices.map((i) => ({
+      invoiceNo: i.invoiceNo,
+      customerName: i.Transaction?.Customer?.name,
+      amount: i.Transaction?.Payments[0].payments[0].totalAmount,
+      status: i.status,
+      email: i.Transaction?.Customer?.email,
+      planId: i.Transaction?.Payments[0].id,
+      paymentId: i.Transaction?.Payments[0].payments[0].id,
+    }));
 
     res
       .status(StatusCodes.OK)
-      .json({ msg: "Success", data: invoices, nbHits: invoices.length });
+      .json({ msg: "Success", data: returnedData, nbHits: invoices.length });
   },
 
   getInvoice: async (req: Request, res: Response) => {
@@ -260,7 +273,7 @@ export const InvoiceCtrl = {
                     },
                   },
                 },
-          totalAmount: paymentPlan?.payments[0].totalAmount!,
+          totalAmount: Number(paymentPlan?.payments[0].totalAmount!),
           balancePaid: Number(amount),
         },
       });
