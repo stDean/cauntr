@@ -26,104 +26,6 @@ export const getUserHelper = async ({
   return { user };
 };
 
-const getCustomerAndDebtorTransaction = async ({
-  companyId,
-  tenantId,
-  id,
-}: {
-  companyId: string;
-  tenantId: string;
-  id: string;
-}) => {
-  const transactions = await prisma.transaction.findMany({
-    where: {
-      companyId,
-      tenantId,
-      customerId: id,
-    },
-    select: {
-      id: true,
-      type: true,
-      Customer: {
-        select: { name: true, email: true, phone: true, address: true },
-      },
-      TransactionItem: {
-        select: {
-          id: true,
-          quantity: true,
-          pricePerUnit: true,
-          totalPrice: true,
-          Product: {
-            select: {
-              productName: true,
-              sku: true,
-              serialNo: true,
-            },
-          },
-        },
-      },
-      Payments: {
-        select: {
-          payments: {
-            select: {
-              method: true,
-              paymentDate: true,
-              balanceOwed: true,
-              totalPay: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  let data;
-
-  // If no transactions were found, return an empty result.
-  if (transactions.length === 0) {
-    const customer = await prisma.customer.findUnique({
-      where: { id, companyId, tenantId },
-    });
-    data = {
-      customerData: {
-        name: customer?.name,
-        email: customer?.email,
-        phone: customer?.phone,
-        address: customer?.address,
-      },
-      products: [],
-      buyCount: 0,
-    };
-    return { data };
-  }
-
-  const customerData = transactions[0].Customer;
-
-  // Build a products array by flattening each transaction's TransactionItem array.
-  const products = transactions.flatMap((transaction) => {
-    // If payments exist, take the first payment's info; otherwise, fallback to transaction.createdAt.
-    const payment = transaction.Payments?.[0]?.payments?.[0] || null;
-    return transaction.TransactionItem.map((item) => ({
-      productName: item.Product.productName,
-      serialNo: item.Product.serialNo,
-      sku: item.Product.sku,
-      quantity: item.quantity,
-      paymentMethod: payment ? payment.method : null,
-      purchaseDate: payment ? payment.paymentDate : null,
-      totalPrice: item.totalPrice,
-      pricePerUnit: item.pricePerUnit,
-      transactionType: transaction.type,
-      balanceOwed: payment?.balanceOwed ? payment?.balanceOwed : null,
-      itemId: item.id,
-      paidPrice: payment.totalPay,
-    }));
-  });
-
-  data = { customerData, products, buyCount: products.length };
-
-  return { data };
-};
-
 export const UserCtrl = {
   /**
    * Create a new user.
@@ -219,12 +121,6 @@ export const UserCtrl = {
       lastName: user.last_name,
       role: user.role,
       phone: user.phone,
-      // Company: {
-      //   companyId: user.Company?.id,
-      //   name: user.Company?.company_name,
-      //   email: user.Company?.company_email,
-      //   status: user.Company?.subscriptionStatus,
-      // },
     };
     res.status(StatusCodes.OK).json({ success: true, data: returnedUser });
   },
@@ -466,7 +362,7 @@ export const UserCtrl = {
     const customerWithPaymentPlanTypeCustomer =
       await prisma.paymentPlan.findMany({
         where: { customerType: CustomerType.CUSTOMER },
-        select: { Customer: true },
+        select: { Customer: true, payments: { where: { balanceOwed: 0 } } },
       });
 
     // Collect unique customers
@@ -492,6 +388,7 @@ export const UserCtrl = {
         tenantId: company.tenantId,
         companyId: company.id,
         customerId: { in: customerIds },
+        Payments: { every: { payments: { every: { balanceOwed: 0 } } } },
       },
       _count: { _all: true },
     });
@@ -530,13 +427,39 @@ export const UserCtrl = {
     const { company } = await userNdCompany(req.user);
     if (!company) throw new BadRequestError("Company not found.");
 
-    const { data } = await getCustomerAndDebtorTransaction({
-      companyId: company.id,
-      tenantId: company.tenantId,
-      id: req.params.id,
+    const customer = await prisma.customer.findUnique({
+      where: { id: req.params.id },
     });
 
-    res.status(StatusCodes.OK).json({ success: true, data });
+    const customerTransactions = await prisma.transaction.findMany({
+      where: {
+        customerId: customer?.id,
+        Payments: {
+          every: { payments: { every: { balanceOwed: 0 } } },
+        },
+      },
+      include: { TransactionItem: true, createdBy: true },
+    });
+
+    const trans = customerTransactions.map((trans) => ({
+      transId: trans.id.slice(0, 8),
+      soldBy: `${trans.createdBy.first_name} ${trans.createdBy.last_name}`,
+      itemCount: trans.TransactionItem.length,
+      dateSold: trans.createdAt,
+      id: trans.id,
+    }));
+
+    const returnedData = {
+      customerData: {
+        name: customer?.name,
+        email: customer?.email,
+        address: customer?.address,
+        phone: customer?.phone,
+      },
+      trans,
+    };
+
+    res.status(StatusCodes.OK).json({ success: true, data: returnedData });
   },
 
   /**
@@ -588,37 +511,164 @@ export const UserCtrl = {
    * - Fetch all customers from payment plans that have customerType DEBTOR.
    * - Return the list of debtor customers along with the count.
    */
+  // getDebtors: async (req: Request, res: Response) => {
+  //   const { company } = await userNdCompany(req.user);
+  //   if (!company) throw new BadRequestError("Company not found.");
+
+  //   const debtors = await prisma.paymentPlan.findMany({
+  //     where: { payments: { some: { balanceOwed: { not: 0 } } } },
+  //   });
+
+  //   const debtorTransactions = await prisma.transaction.findMany({
+  //     where: {
+  //       id: {
+  //         in: debtors
+  //           .map((debtor) => debtor.transactionId)
+  //           .filter((id): id is string => id !== null),
+  //       },
+  //     },
+  //     include: { Customer: { include: { Transaction: true } } },
+  //   });
+
+  //   const uniqueCustomers = new Map<string, any>();
+
+  //   debtorTransactions.forEach((transaction) => {
+  //     const customer = transaction.Customer;
+  //     if (!customer) return; // Skip transactions without customers
+
+  //     if (!uniqueCustomers.has(customer.id)) {
+  //       uniqueCustomers.set(customer.id, {
+  //         id: customer.id,
+  //         name: customer.name,
+  //         email: customer.email,
+  //         phone: customer.phone,
+  //         transactionCount: customer.Transaction.length,
+  //         dateAdded: customer.createdAt,
+  //       });
+  //     }
+  //   });
+
+  //   // const customersWithTransactions = Array.from(uniqueCustomers.values());
+
+  //   // const uniqueCustomers = new Map<string, any>();
+
+  //   // customerWithPaymentPlanTypeCustomer.forEach((c) => {
+  //   //   if (c.Customer) uniqueCustomers.set(c.Customer.id, c.Customer);
+  //   // });
+
+  //   // const customers = Array.from(uniqueCustomers.values());
+
+  //   // const returnedData = customers
+  //   //   .filter((c) => c !== null)
+  //   //   .map((customer) => {
+  //   //     return {
+  //   //       id: customer!.id,
+  //   //       name: customer!.name,
+  //   //       email: customer!.email,
+  //   //       phone: customer!.phone,
+  //   //       transactionCount: customer!.Transaction.length,
+  //   //       dateAdded: customer!.createdAt,
+  //   //     };
+  //   //   });
+
+  //   res.status(StatusCodes.OK).json({
+  //     success: true,
+  //     data: Array.from(uniqueCustomers.values()), // Convert map values to array
+  //     nbHits: uniqueCustomers.size,
+  //   });
+  // },
+
   getDebtors: async (req: Request, res: Response) => {
     const { company } = await userNdCompany(req.user);
     if (!company) throw new BadRequestError("Company not found.");
 
-    const customerWithPaymentPlanTypeCustomer =
-      await prisma.paymentPlan.findMany({
-        where: { customerType: CustomerType.DEBTOR },
-        select: { Customer: { include: { Transaction: true } } },
-      });
+    // 1. Get active debtors (payment plans with unpaid balances)
+    const debtorPlans = await prisma.paymentPlan.findMany({
+      where: {
+        payments: {
+          some: {
+            balanceOwed: { not: 0 },
+          },
+        },
+        transactionId: { not: null },
+      },
+      select: { transactionId: true },
+    });
 
-    const customers = customerWithPaymentPlanTypeCustomer.map(
-      (c) => c.Customer
+    // 2. Extract unique transaction IDs from debtors
+    const debtorTransactionIds = Array.from(
+      new Set(
+        debtorPlans
+          .map((plan) => plan.transactionId)
+          .filter((id): id is string => id !== null)
+      )
     );
 
-    // i want
-    // const returnedData = [{ name, email, phone, lastPaidDate, count }];
-    const returnedData = customers.map((customer) => {
-      return {
-        id: customer!.id,
-        name: customer!.name,
-        email: customer!.email,
-        phone: customer!.phone,
-        transactionCount: customer!.Transaction.length,
-        dateAdded: customer!.createdAt,
-      };
+    // 3. Get transactions associated with debtors
+    const debtorTransactions = await prisma.transaction.findMany({
+      where: {
+        id: { in: debtorTransactionIds },
+        tenantId: company.tenantId,
+        companyId: company.id,
+      },
+      include: { Customer: true },
+    });
+
+    // 4. Get unique customer IDs from debtor transactions
+    const customerIds = Array.from(
+      new Set(
+        debtorTransactions
+          .map((t) => t.Customer?.id)
+          .filter((id): id is string => id !== undefined)
+      )
+    );
+
+    // 5. Get ALL transactions for these customers (for accurate counts)
+    const transactionsByCustomerId = new Map<string, any[]>();
+    if (customerIds.length > 0) {
+      const allTransactions = await prisma.transaction.findMany({
+        where: {
+          customerId: { in: customerIds },
+          tenantId: company.tenantId,
+          companyId: company.id,
+          Payments: {
+            every: { payments: { every: { balanceOwed: { not: 0 } } } },
+          },
+        },
+      });
+
+      allTransactions.forEach((transaction) => {
+        const customerId = transaction.customerId;
+        transactionsByCustomerId.set(customerId!, [
+          ...(transactionsByCustomerId.get(customerId!) || []),
+          transaction,
+        ]);
+      });
+    }
+
+    // 6. Create unique customer entries with debt status
+    const uniqueCustomers = new Map<string, any>();
+    debtorTransactions.forEach((transaction) => {
+      const customer = transaction.Customer;
+      if (!customer) return;
+
+      if (!uniqueCustomers.has(customer.id)) {
+        uniqueCustomers.set(customer.id, {
+          id: customer.id,
+          name: customer.name,
+          email: customer.email,
+          phone: customer.phone,
+          transactionCount:
+            transactionsByCustomerId.get(customer.id)?.length || 0,
+          dateAdded: customer.createdAt,
+        });
+      }
     });
 
     res.status(StatusCodes.OK).json({
       success: true,
-      data: returnedData,
-      nbHits: customers.length,
+      data: Array.from(uniqueCustomers.values()),
+      nbHits: uniqueCustomers.size,
     });
   },
 
@@ -632,13 +682,39 @@ export const UserCtrl = {
     const { company } = await userNdCompany(req.user);
     if (!company) throw new BadRequestError("Company not found.");
 
-    const { data } = await getCustomerAndDebtorTransaction({
-      companyId: company.id,
-      tenantId: company.tenantId,
-      id: req.params.id,
+    const debtor = await prisma.customer.findUnique({
+      where: { id: req.params.id },
     });
 
-    res.status(StatusCodes.OK).json({ success: true, data });
+    const debtorTransactions = await prisma.transaction.findMany({
+      where: {
+        customerId: debtor?.id,
+        Payments: {
+          every: { payments: { every: { balanceOwed: { not: 0 } } } },
+        },
+      },
+      include: { TransactionItem: true, createdBy: true },
+    });
+
+    const trans = debtorTransactions.map((trans) => ({
+      transId: trans.id.slice(0, 8),
+      soldBy: `${trans.createdBy.first_name} ${trans.createdBy.last_name}`,
+      itemCount: trans.TransactionItem.length,
+      dateSold: trans.createdAt,
+      id: trans.id,
+    }));
+
+    const returnedData = {
+      customerData: {
+        name: debtor?.name,
+        email: debtor?.email,
+        address: debtor?.address,
+        phone: debtor?.phone,
+      },
+      trans,
+    };
+
+    res.status(StatusCodes.OK).json({ success: true, data: returnedData });
   },
 
   // ===========================================================================

@@ -216,7 +216,10 @@ export const soldOrSwapByID = async ({
       createdBy: true,
       Payments: {
         include: {
-          payments: { include: { acctPaidTo: { include: { bank: true } } } },
+          payments: {
+            include: { acctPaidTo: { include: { bank: true } } },
+            orderBy: { createdAt: "desc" },
+          },
         },
       },
     },
@@ -691,6 +694,9 @@ export const TransactionsCtrl = {
       date: pay.createdAt,
       amount: pay.totalAmount,
       modeOfPay: pay.method,
+      balanceOwed: pay.balanceOwed,
+      amountPaid: pay.totalPay,
+      balancePaid: pay.balancePaid,
     }));
 
     const returnedData = {
@@ -705,7 +711,7 @@ export const TransactionsCtrl = {
       },
       salesSummary: salesSummary,
       paymentHistory: paymentHistory,
-      totalPay: transaction.Payments[0].payments[0].totalPay,
+      totalPay: transaction.Payments[0].payments[0].totalAmount,
     };
 
     res.status(StatusCodes.OK).json({
@@ -823,27 +829,23 @@ export const TransactionsCtrl = {
     const { company } = await userNdCompany(req.user);
     if (!company) throw new BadRequestError("Company not found.");
 
-    const product = await prisma.transactionItem.findUnique({
+    const transaction = await prisma.transaction.findUnique({
       where: { id: req.params.itemId },
       include: {
-        Transaction: {
+        Payments: {
           select: {
-            Payments: {
-              select: {
-                payments: { orderBy: { paymentDate: "desc" } },
-                installmentCount: true,
-              },
-            },
-            customerId: true,
+            payments: { orderBy: { paymentDate: "desc" } },
+            installmentCount: true,
+            id: true,
           },
         },
+        Customer: { select: { email: true } },
       },
     });
 
-    if (!product) throw new NotFoundError("Product not found.");
+    if (!transaction) throw new NotFoundError("Transaction not found.");
 
-    const isBalance =
-      product?.Transaction?.Payments?.[0]?.payments?.[0]?.balanceOwed;
+    const isBalance = transaction?.Payments?.[0]?.payments?.[0]?.balanceOwed;
 
     if (Number(isBalance) === 0) {
       throw new BadRequestError("Balance is 0 and cannot be updated.");
@@ -856,56 +858,115 @@ export const TransactionsCtrl = {
       throw new BadRequestError("Cannot pay more than balance owed");
     }
 
-    const plan = await prisma.paymentPlan.update({
-      where: {
-        id: product?.Transaction?.Payments?.[0]?.payments?.[0]?.paymentPlanId!,
-      },
+    // const plan = await prisma.paymentPlan.update({
+    //   where: {
+    //     id: transaction?.Payments?.[0]?.payments?.[0]?.paymentPlanId!,
+    //   },
+    //   data: {
+    //     customerType:
+    //       balance !== 0 ? CustomerType.DEBTOR : CustomerType.CUSTOMER,
+    //     installmentCount: transaction?.Payments?.[0]?.installmentCount! + 1,
+    //     payments: {
+    //       create: {
+    //         method: method
+    //           ? method.toUpperCase()
+    //           : (transaction?.Payments?.[0]?.payments?.[0]
+    //               ?.method as PaymentMethod),
+    //         totalAmount: Number(
+    //           transaction?.Payments?.[0]?.payments?.[0]?.totalAmount
+    //         ),
+    //         balanceOwed: balance,
+    //         balancePaid: Number(amount),
+    //         totalPay:
+    //           Number(amount) +
+    //           Number(transaction?.Payments?.[0]?.payments?.[0]?.totalPay),
+    //         acctPaidTo:
+    //           method === "BANK_TRANSFER"
+    //             ? {
+    //                 connectOrCreate: {
+    //                   where: {
+    //                     userBankId: acctPaidTo?.userBankId,
+    //                   },
+    //                   create: {
+    //                     bank: {
+    //                       create: {
+    //                         bankName: acctPaidTo?.bankName || "",
+    //                         acctNo: acctPaidTo?.acctNo || "",
+    //                         acctName: acctPaidTo?.acctName || "",
+    //                       },
+    //                     },
+    //                   },
+    //                 },
+    //               }
+    //             : undefined,
+    //       },
+    //     },
+    //   },
+    // });
+
+    const updatedInvoice = await prisma.invoice.update({
+      where: { transactionId: transaction.id },
       data: {
-        customerType:
-          balance !== 0 ? CustomerType.DEBTOR : CustomerType.CUSTOMER,
-        installmentCount:
-          product?.Transaction?.Payments?.[0]?.installmentCount! + 1,
-        payments: {
-          create: {
-            method: method
-              ? method.toUpperCase()
-              : (product?.Transaction?.Payments?.[0]?.payments?.[0]
-                  ?.method as PaymentMethod),
-            totalAmount: Number(
-              product?.Transaction?.Payments?.[0]?.payments?.[0]?.totalAmount
-            ),
-            balanceOwed: balance,
-            balancePaid: Number(amount),
-            totalPay:
-              Number(amount) +
-              Number(
-                product?.Transaction?.Payments?.[0]?.payments?.[0]?.totalPay
-              ),
-            acctPaidTo:
-              method === "BANK_TRANSFER"
-                ? {
-                    connectOrCreate: {
-                      where: {
-                        userBankId: acctPaidTo?.userBankId,
-                      },
-                      create: {
-                        bank: {
-                          create: {
-                            bankName: acctPaidTo?.bankName || "",
-                            acctNo: acctPaidTo?.acctNo || "",
-                            acctName: acctPaidTo?.acctName || "",
-                          },
-                        },
-                      },
+        status: balance === 0 ? "PAID" : "PART_PAID",
+        paymentDate: new Date(),
+        Transaction: {
+          update: {
+            Payments: {
+              update: {
+                where: { id: transaction.Payments[0].id },
+                data: {
+                  customerType:
+                    balance !== 0 ? CustomerType.DEBTOR : CustomerType.CUSTOMER,
+                  installmentCount:
+                    transaction?.Payments?.[0]?.installmentCount! + 1,
+                  payments: {
+                    create: {
+                      method: method
+                        ? method.toUpperCase()
+                        : (transaction?.Payments?.[0]?.payments?.[0]
+                            ?.method as PaymentMethod),
+                      totalAmount: Number(
+                        transaction?.Payments?.[0]?.payments?.[0]?.totalAmount
+                      ),
+                      balanceOwed: balance,
+                      balancePaid: Number(amount),
+                      totalPay:
+                        Number(amount) +
+                        Number(
+                          transaction?.Payments?.[0]?.payments?.[0]?.totalPay
+                        ),
+                      acctPaidTo:
+                        method === "BANK_TRANSFER"
+                          ? {
+                              connectOrCreate: {
+                                where: {
+                                  userBankId: acctPaidTo?.userBankId,
+                                },
+                                create: {
+                                  bank: {
+                                    create: {
+                                      bankName: acctPaidTo?.bankName || "",
+                                      acctNo: acctPaidTo?.acctNo || "",
+                                      acctName: acctPaidTo?.acctName || "",
+                                    },
+                                  },
+                                },
+                              },
+                            }
+                          : undefined,
                     },
-                  }
-                : undefined,
+                  },
+                },
+              },
+            },
           },
         },
       },
     });
 
-    // TODO:Update Invoice and send a follow up invoice to the customer
+    if (transaction.Customer?.email) {
+      await emailService.sendInvoice(updatedInvoice.invoiceNo);
+    }
 
     res.status(StatusCodes.OK).json({
       success: true,

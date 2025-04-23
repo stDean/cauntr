@@ -87,6 +87,7 @@ export class EmailService {
               include: {
                 payments: {
                   include: { acctPaidTo: { include: { bank: true } } },
+                  orderBy: { createdAt: "desc" },
                 },
               },
             },
