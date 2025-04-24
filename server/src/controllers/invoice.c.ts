@@ -163,15 +163,74 @@ export const InvoiceCtrl = {
         Transaction: {
           include: {
             Payments: {
-              include: { payments: { orderBy: { createdAt: "desc" } } },
+              include: {
+                payments: {
+                  orderBy: { createdAt: "desc" },
+                  include: { acctPaidTo: { include: { bank: true } } },
+                },
+              },
             },
+            Company: { include: { CompanyAccount: true } },
+            Customer: true,
+            TransactionItem: { include: { Product: true } },
           },
         },
       },
     });
     if (!invoice) throw new NotFoundError("Invoice does not exist");
 
-    res.status(StatusCodes.OK).json({ msg: "Success", data: invoice });
+    const returnedData = {
+      invoiceData: {
+        invoiceNo: invoice.invoiceNo,
+        invoiceDate: invoice.createdAt,
+        paymentDate: invoice.paymentDate,
+        status: invoice.status,
+      },
+      companyData: {
+        name: invoice.Transaction?.Company.company_name,
+        email: invoice.Transaction?.Company.company_email,
+        phone: invoice.Transaction?.Company.CompanyAccount?.phoneNumber,
+        address: invoice.Transaction?.Company.CompanyAccount?.businessAddress,
+      },
+      billTo: {
+        name: invoice.Transaction?.Customer?.name,
+        email: invoice.Transaction?.Customer?.email,
+        phone: invoice.Transaction?.Customer?.phone,
+        address: invoice.Transaction?.Customer?.address,
+      },
+      balanceDue: {
+        amount: invoice.Transaction?.Payments[0].payments[0].balanceOwed,
+        dueDate: invoice.paymentDate,
+      },
+      products: invoice.Transaction?.TransactionItem.map((p) => ({
+        name: p.Product.productName,
+        qty: p.quantity,
+        ppu: p.pricePerUnit,
+        total: Number(p.pricePerUnit) * Number(p.quantity),
+        totalPrice: p.totalPrice,
+      })),
+      payments: {
+        subTotal: invoice.Transaction?.Payments[0].payments[0].totalAmount,
+        totalPaid: invoice.Transaction?.Payments[0].payments[0].totalPay,
+      },
+      bankPaidTo: {
+        bankName:
+          invoice.Transaction?.Payments[0].payments[0].acctPaidTo?.bank
+            ?.bankName,
+        acctNo:
+          invoice.Transaction?.Payments[0].payments[0].acctPaidTo?.bank?.acctNo,
+        acctName:
+          invoice.Transaction?.Payments[0].payments[0].acctPaidTo?.bank
+            ?.acctName,
+      },
+    };
+
+    console.log({
+      a: invoice.Transaction?.Payments[0].payments[0].acctPaidTo?.bank
+        ?.bankName,
+    });
+
+    res.status(StatusCodes.OK).json({ msg: "Success", data: returnedData });
   },
 
   resendInvoice: async (req: Request, res: Response) => {
