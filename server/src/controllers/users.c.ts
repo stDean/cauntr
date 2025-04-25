@@ -407,6 +407,7 @@ export const UserCtrl = {
         phone: customer.phone,
         transactionCount: transactionCounts.get(customer.id) || 0,
         dateAdded: customer.createdAt,
+        address: customer.address,
       })),
     };
 
