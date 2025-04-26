@@ -192,18 +192,18 @@ const generateInvoiceEmail = (
         ${invoice.status === "DRAFT" ? "Pending" : invoice.status}
       </p>
     </div>
-    <div style="text-align: right;">
-      <p style="margin: 2px 0;">Invoice Date: ${new Date(
+    <div style="text-align: right;margin-right: 3px;">
+      <p style="margin: 3px 0;">Invoice Date: ${new Date(
         invoice.createdAt
       ).toLocaleDateString()}</p>
-      <p style="margin: 2px 0;">Payment Date: ${new Date(
+      <p style="margin: 3px 0;">Payment Date: ${new Date(
         invoice.paymentDate
       ).toLocaleDateString()}</p>
     </div>
   </div>
 
   <div style="display: flex; justify-content: space-between; margin-bottom: 30px;">
-    <div>
+    <div style="margin-right: 20px;">
       <h3 style="margin: 0 0 10px;">${companyData.name}</h3>
       <p style="margin: 2px 0;">${companyData.address}</p>
       <p style="margin: 2px 0;">${companyData.phone}</p>
