@@ -6,7 +6,7 @@ import {
   NotFoundError,
   UnauthenticatedError,
 } from "../errors";
-import { prisma } from "../utils/prisma.h";
+import { prisma } from "../utils/prisma";
 
 export const SubscriptionMiddleware = async (
   req: Request,

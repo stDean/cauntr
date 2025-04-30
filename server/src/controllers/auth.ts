@@ -1,17 +1,14 @@
 import argon2 from "argon2";
 import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
-import {
-  BadRequestError,
-  CustomAPIError
-} from "../errors";
+import { BadRequestError, CustomAPIError } from "../errors";
 import { emailService } from "../services/emailService";
 import {
   createJWT,
   generateVerificationToken,
   handleOtpForCompany,
-} from "../utils/authHelpers.h";
-import { prisma } from "../utils/prisma.h";
+} from "../utils/authHelpers";
+import { prisma } from "../utils/prisma";
 
 const checkOTP = async ({ email }: { email: string }): Promise<any> => {
   const existingToken = await prisma.otp.findFirst({

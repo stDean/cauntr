@@ -1,5 +1,5 @@
 import { Request, NextFunction, Response, Router } from "express";
-import { prisma } from "../utils/prisma.h";
+import { prisma } from "../utils/prisma";
 import Stripe from "stripe";
 import { BadRequestError, CustomAPIError } from "../errors";
 import { getTierByPriceId } from "../data/subTier";

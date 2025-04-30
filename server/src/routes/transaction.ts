@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { TransactionsCtrl } from "../controllers/transaction.c";
-import { AdminMiddleware } from "../middleware/admin.m";
-import { AuthMiddleware } from "../middleware/auth.m";
-import { CheckActiveSubscription } from "../middleware/action.m";
+import { TransactionsCtrl } from "../controllers/transaction";
+import { AdminMiddleware } from "../middleware/admin";
+import { AuthMiddleware } from "../middleware/auth";
+import { CheckActiveSubscription } from "../middleware/action";
 
 const router = Router();
 

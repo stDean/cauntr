@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { StatusCodes } from "http-status-codes";
-import { errorHandlerMiddleware } from "../../../middleware/error-handling.m";
+import { errorHandlerMiddleware } from "../../../middleware/error-handling";
 import { Prisma } from "@prisma/client";
 
 // Mock response object methods

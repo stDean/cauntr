@@ -7,7 +7,7 @@ import {
 } from "../errors";
 import { emailService } from "../services/emailService";
 import { userNdCompany } from "../utils/helper";
-import { prisma } from "../utils/prisma.h";
+import { prisma } from "../utils/prisma";
 import { generateInvoiceNo } from "../utils/helperUtils";
 
 export const InvoiceCtrl = {

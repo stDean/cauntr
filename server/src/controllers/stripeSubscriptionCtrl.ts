@@ -4,7 +4,7 @@ import { StatusCodes } from "http-status-codes";
 import { getTierByPriceId, TierNames } from "../data/subTier";
 import { BadRequestError, NotFoundError } from "../errors";
 import { StripeService } from "../services/stripeService";
-import { prisma } from "../utils/prisma.h";
+import { prisma } from "../utils/prisma";
 import Stripe from "stripe";
 
 interface BillingHistory {

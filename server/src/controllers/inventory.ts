@@ -20,8 +20,8 @@ import {
   productUtils,
   responseUtils,
 } from "../utils/helperUtils";
-import { prisma } from "../utils/prisma.h";
-import { generateSalesReport, getSoldOrSwapProducts } from "./transaction.c";
+import { prisma } from "../utils/prisma";
+import { generateSalesReport, getSoldOrSwapProducts } from "./transaction";
 
 export const InventoryCtrl = {
   /**

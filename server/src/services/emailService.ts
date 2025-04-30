@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 import { Transporter } from "nodemailer";
-import { prisma } from "../utils/prisma.h";
+import { prisma } from "../utils/prisma";
 import { emit } from "process";
 
 export interface EmailConfig {

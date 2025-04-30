@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { SubscriptionCtrl } from "../controllers/subscription.c";
-import { AuthMiddleware } from "../middleware/auth.m";
-import { AdminMiddleware } from "../middleware/admin.m";
+import { SubscriptionCtrl } from "../controllers/subscription";
+import { AuthMiddleware } from "../middleware/auth";
+import { AdminMiddleware } from "../middleware/admin";
 import { StripeCtrl } from "../controllers/stripeSubscriptionCtrl";
-import { SubscriptionMiddleware } from "../middleware/action.m";
+import { SubscriptionMiddleware } from "../middleware/action";
 
 const router = Router();
 

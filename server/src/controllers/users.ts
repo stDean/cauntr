@@ -4,7 +4,7 @@ import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
 import { BadRequestError, NotFoundError } from "../errors";
 import { userNdCompany } from "../utils/helper";
-import { prisma } from "../utils/prisma.h";
+import { prisma } from "../utils/prisma";
 
 export const getUserHelper = async ({
   id,

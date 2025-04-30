@@ -11,7 +11,7 @@ import { BadRequestError, NotFoundError } from "../errors";
 import { StatusCodes } from "http-status-codes";
 import { Response } from "express";
 import { InvoiceNumber } from "invoice-number";
-import { prisma } from "./prisma.h";
+import { prisma } from "./prisma";
 
 export interface ProductInput {
   productName: string;

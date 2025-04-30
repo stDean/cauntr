@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { AuthController } from "../controllers/auth.c";
-import { validateCompanyRegistration } from "../middleware/validateRegistration.m";
-import { checkExistingCompany } from "../middleware/checkExistingCompany.m";
+import { AuthController } from "../controllers/auth";
+import { validateCompanyRegistration } from "../middleware/validateRegistration";
+import { checkExistingCompany } from "../middleware/checkExistingCompany";
 
 const router = Router();
 

@@ -1,5 +1,5 @@
 import { Tier } from "@prisma/client";
-import { prisma } from "../utils/prisma.h";
+import { prisma } from "../utils/prisma";
 import { scheduleJob } from "node-schedule";
 
 export class ScheduleJob {

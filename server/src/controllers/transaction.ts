@@ -21,7 +21,7 @@ import {
   transactionUtils,
   validationUtils,
 } from "../utils/helperUtils";
-import { prisma } from "../utils/prisma.h";
+import { prisma } from "../utils/prisma";
 import { supplierService } from "../services/supplierService";
 import { emailService } from "../services/emailService";
 
