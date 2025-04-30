@@ -26,7 +26,7 @@ export const validateCompanyRegistration = (
 
   // Validate password
   const passwordRegex =
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/;
   if (!password?.trim()) {
     errors.password = "Password is required";
   } else if (!passwordRegex.test(password)) {

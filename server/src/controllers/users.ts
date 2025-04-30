@@ -150,16 +150,17 @@ export const UserCtrl = {
     const { user } = await getUserHelper({ id: req.params.id, company });
 
     // If a new password is provided, hash it; otherwise, use the existing password
-    if (req.body.password && req.body.password !== "") {
+    if (req.body.password && req.body.password.trim() !== "") {
       req.body.password = await argon2.hash(req.body.password);
     } else {
       req.body.password = user.password;
     }
 
+    console.log({ ...req.body });
     // Use a database transaction to update both bank details and user record atomically
     const updatedUser = await prisma.user.update({
       where: { id: user.id, tenantId: company.tenantId, companyId: company.id },
-      data: req.body,
+      data: { ...req.body, role: req.body.role.toUpperCase() as Role },
     });
 
     res.status(StatusCodes.OK).json({

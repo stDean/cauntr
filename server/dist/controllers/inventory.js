@@ -735,14 +735,18 @@ export const InventoryCtrl = {
             inventoryValue: 0, // Remaining inventory value
             profit: 0,
             profitPercent: 0,
+            corg: 0,
         }));
         // Track inventory by creation month
         const inventoryByMonth = new Map();
+        const purchaseByMonth = new Map();
         // 1. Process products to track initial inventory
         products.forEach((p) => {
             const createdMonth = new Date(p.createdAt).getMonth();
-            const value = Number(p.costPrice) * Number(p.quantity);
+            const value = Number(p.sellingPrice) * Number(p.quantity);
+            const value2 = Number(p.costPrice) * Number(p.quantity);
             inventoryByMonth.set(createdMonth, (inventoryByMonth.get(createdMonth) || 0) + value);
+            purchaseByMonth.set(createdMonth, (purchaseByMonth.get(createdMonth) || 0) + value2);
         });
         transactions.forEach((t) => {
             const saleMonth = new Date(t.createdAt).getMonth();
@@ -755,16 +759,17 @@ export const InventoryCtrl = {
                 const createdMonth = new Date(product.createdAt).getMonth();
                 const quantity = Number(item.quantity);
                 const costPrice = Number(product.costPrice);
+                console.log({ costPrice });
                 const itemCOGS = costPrice * quantity;
-                const remainingProductPrice = costPrice * Number(product.quantity);
                 monthlyCardData[createdMonth].cogs += itemCOGS;
             });
         });
         // 3. Calculate final monthly values
         monthlyCardData.forEach((monthData, index) => {
             const initialInventory = inventoryByMonth.get(index) || 0;
-            monthData.inventoryValue = initialInventory;
-            monthData.purchaseAmount = initialInventory + monthData.cogs;
+            const initialPurchase = purchaseByMonth.get(index) || 0;
+            monthData.inventoryValue = initialInventory || 0;
+            monthData.purchaseAmount = initialPurchase + Number(monthData.cogs);
             monthData.profit = monthData.salesAmount - monthData.cogs;
             monthData.profitPercent =
                 monthData.cogs > 0 ? (monthData.profit / monthData.cogs) * 100 : 0;

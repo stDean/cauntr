@@ -420,6 +420,7 @@ export const TransactionsCtrl = {
                 salesType: transaction.type,
                 transactionDate: transaction.createdAt,
                 itemCount: transaction.TransactionItem.length,
+                shortId: transaction.id.slice(0, 8),
             };
         });
         res.status(StatusCodes.OK).json({

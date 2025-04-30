@@ -212,14 +212,14 @@ model Otp {
 
 model User {
   id          String        @id @default(uuid())
-  tenantId    String        @unique
+  tenantId    String
   first_name  String?
   last_name   String?
   email       String        @unique
   password    String
   phone       String?       @unique
   role        Role          @default(EMPLOYEE)
-  companyId   String?       @unique
+  companyId   String
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   deletedAt   DateTime?

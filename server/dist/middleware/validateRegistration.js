@@ -18,7 +18,7 @@ export const validateCompanyRegistration = (req, res, next) => {
         errors.company_email = "Invalid email format";
     }
     // Validate password
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/;
     if (!password?.trim()) {
         errors.password = "Password is required";
     }
