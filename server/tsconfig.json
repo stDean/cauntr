@@ -8,6 +8,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "typeRoots": ["./node_modules/@types", "./src/env.d.ts", "./src/types"],
+    "allowImportingTsExtensions": false,
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules"]

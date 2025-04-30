@@ -1,0 +1,18 @@
+import jwt from "jsonwebtoken";
+import { UnauthenticatedError } from "../errors/index.js";
+export const AuthMiddleware = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer")) {
+        throw new UnauthenticatedError("Invalid Authentication");
+    }
+    const token = authHeader.split(" ")[1];
+    if (!token) {
+        throw new UnauthenticatedError("No token provided.");
+    }
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    if (!payload) {
+        throw new UnauthenticatedError("Invalid or expired token provided.");
+    }
+    req.user = payload;
+    next();
+};

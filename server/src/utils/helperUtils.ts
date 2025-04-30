@@ -7,7 +7,7 @@ import {
   Prisma,
   TransactionType,
 } from "@prisma/client";
-import { BadRequestError, NotFoundError } from "../errors";
+import { BadRequestError, NotFoundError } from "../errors/index.js";
 import { StatusCodes } from "http-status-codes";
 import { Response } from "express";
 import { InvoiceNumber } from "invoice-number";
@@ -347,7 +347,7 @@ export async function generateInvoiceNo({
 
   const companyInitials = company.company_name
     .split(" ")
-    .map((name) => name[0])
+    .map((name: any) => name[0])
     .join("");
 
   const getYearAndDate = new Date();
