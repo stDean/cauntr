@@ -10,6 +10,8 @@ router
   .route("/all")
   .get([AuthMiddleware, CheckActiveSubscription], InvoiceCtrl.getInvoices);
 
+router.route("/summary").get([AuthMiddleware], InvoiceCtrl.invoiceSummary);
+
 router
   .route("/:invoiceNo")
   .get([AuthMiddleware, CheckActiveSubscription], InvoiceCtrl.getInvoice);

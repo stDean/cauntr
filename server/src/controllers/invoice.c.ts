@@ -374,4 +374,51 @@ export const InvoiceCtrl = {
       });
     });
   },
+
+  invoiceSummary: async (req: Request, res: Response) => {
+    const { user } = req;
+    const { company } = await userNdCompany(user);
+    if (!company) throw new UnauthenticatedError("No company found");
+
+    const invoices = await prisma.invoice.findMany({
+      where: { companyId: company.id, tenantId: company.tenantId },
+      include: {
+        Transaction: {
+          include: {
+            Customer: true,
+            Payments: {
+              include: { payments: { orderBy: { createdAt: "desc" } } },
+            },
+          },
+        },
+      },
+    });
+
+    const customers = Array.from(
+      new Map(
+        invoices
+          .map((i) => i.Transaction?.Customer)
+          .filter((customer) => customer)
+          .map((customer) => [customer?.id, customer])
+      ).values()
+    );
+
+    const pay = invoices.map((i) => ({
+      totalAmount: i.Transaction?.Payments[0].payments[0].totalAmount,
+      totalPaid: i.Transaction?.Payments[0].payments[0].totalPay,
+    }));
+
+    const returnedData = {
+      clientServed: customers.length,
+      invoiceGenerated: invoices.length,
+      invoiceAmount: pay.reduce((a, p) => {
+        return a + Number(p.totalAmount);
+      }, 0),
+      invoicePaid: pay.reduce((a, p) => {
+        return a + Number(p.totalPaid);
+      }, 0),
+    };
+
+    res.status(StatusCodes.OK).json({ msg: "success", returnedData });
+  },
 };

@@ -222,6 +222,7 @@ export const soldOrSwapByID = async ({
           },
         },
       },
+      Invoice: true,
     },
   });
 
@@ -712,6 +713,7 @@ export const TransactionsCtrl = {
       salesSummary: salesSummary,
       paymentHistory: paymentHistory,
       totalPay: transaction.Payments[0].payments[0].totalAmount,
+      invoiceNo: transaction.Invoice?.invoiceNo,
     };
 
     res.status(StatusCodes.OK).json({
@@ -779,6 +781,7 @@ export const TransactionsCtrl = {
                 payments: { orderBy: { createdAt: "desc" } },
               },
             },
+            Invoice: true,
           },
         },
       },

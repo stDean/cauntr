@@ -57,7 +57,6 @@ export const StripeCtrl = {
     await prisma.company.update({
       where: { id: company!.id },
       data: {
-        subscriptionStatus: "ACTIVE",
         CompanyStripeSubscription: {
           update: {
             startDate: new Date(),

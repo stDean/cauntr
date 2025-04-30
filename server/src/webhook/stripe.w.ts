@@ -111,6 +111,13 @@ const handleCharge = async (charge: Stripe.Charge) => {
       card_type: card?.brand,
       exp_month: card?.exp_month,
       exp_year: card?.exp_year,
+      company: {
+        update: {
+          data: {
+            subscriptionStatus: "ACTIVE",
+          },
+        },
+      },
     },
   });
 };

@@ -21,6 +21,7 @@ import {
   responseUtils,
 } from "../utils/helperUtils";
 import { prisma } from "../utils/prisma.h";
+import { generateSalesReport, getSoldOrSwapProducts } from "./transaction.c";
 
 export const InventoryCtrl = {
   /**
@@ -697,6 +698,13 @@ export const InventoryCtrl = {
     const { email, companyId } = req.user;
     const { company } = await userNdCompany({ email, companyId });
 
+    const { transactions } = await getSoldOrSwapProducts({
+      company,
+      inArray: ["SALE", "BULK_SALE"],
+    });
+
+    const transactionSummary = generateSalesReport(transactions);
+
     // Aggregate to get the total stock quantity.
     const totalStockResult = await prisma.product.aggregate({
       where: { companyId: company.id, tenantId: company.tenantId },
@@ -727,6 +735,7 @@ export const InventoryCtrl = {
         totalStockQuantity: totalStockResult._sum.quantity || 0,
         totalSellingPrice,
         categories: groupedCategories.length,
+        topSellingProduct: transactionSummary.topSellingProduct,
       },
     });
   },
@@ -852,5 +861,335 @@ export const InventoryCtrl = {
     });
 
     res.status(StatusCodes.CREATED).json({ msg: "Bank successfully added." });
+  },
+
+  dashboardSummary: async (req: Request, res: Response) => {
+    const { email, companyId } = req.user;
+    const { company } = await userNdCompany({ email, companyId });
+    if (!company) throw new BadRequestError("No company found!");
+
+    // Parallel data fetching
+    const [transactions, products, lowStockProducts, outOfStock] =
+      await Promise.all([
+        prisma.transaction.findMany({
+          where: {
+            companyId: company.id,
+            tenantId: company.tenantId,
+            type: { in: ["SALE", "BULK_SALE"] },
+          },
+          include: {
+            TransactionItem: { include: { Product: true } },
+            Payments: {
+              include: { payments: { orderBy: { createdAt: "desc" } } },
+            },
+          },
+        }),
+
+        prisma.product.findMany({
+          where: { companyId: company.id, tenantId: company.tenantId },
+        }),
+
+        prisma.product.findMany({
+          where: {
+            companyId: company.id,
+            tenantId: company.tenantId,
+            quantity: { lte: 20 },
+          },
+          select: { productName: true, quantity: true },
+        }),
+
+        prisma.product.findMany({
+          where: {
+            companyId: company.id,
+            tenantId: company.tenantId,
+            quantity: { lte: 0 },
+          },
+          select: { productName: true, updatedAt: true },
+        }),
+      ]);
+
+    // Initialize monthly metrics
+    const months = Array.from({ length: 12 }, (_, i) =>
+      new Date(2023, i).toLocaleString("default", { month: "short" })
+    );
+
+    const monthlyCardData = months.map((month, index) => ({
+      month,
+      salesAmount: 0,
+      purchaseAmount: 0, // Will store COGS + remaining inventory
+      cogs: 0, // Cost of Goods Sold
+      inventoryValue: 0, // Remaining inventory value
+      profit: 0,
+      profitPercent: 0,
+    }));
+
+    // Track inventory by creation month
+    const inventoryByMonth = new Map<number, number>();
+
+    // 1. Process products to track initial inventory
+    products.forEach((p) => {
+      const createdMonth = new Date(p.createdAt).getMonth();
+      const value = Number(p.costPrice) * Number(p.quantity);
+      inventoryByMonth.set(
+        createdMonth,
+        (inventoryByMonth.get(createdMonth) || 0) + value
+      );
+    });
+
+    transactions.forEach((t) => {
+      const saleMonth = new Date(t.createdAt).getMonth();
+      const monthData = monthlyCardData[saleMonth];
+
+      // Track sales
+      const saleAmount = Number(t.Payments[0]?.payments[0]?.totalPay || 0);
+      monthData.salesAmount += saleAmount;
+
+      t.TransactionItem.forEach((item) => {
+        const product = item.Product;
+        const createdMonth = new Date(product.createdAt).getMonth();
+        const quantity = Number(item.quantity);
+        const costPrice = Number(product.costPrice);
+
+        const itemCOGS = costPrice * quantity;
+        const remainingProductPrice = costPrice * Number(product.quantity);
+        monthlyCardData[createdMonth].cogs += itemCOGS;
+      });
+    });
+
+    // 3. Calculate final monthly values
+    monthlyCardData.forEach((monthData, index) => {
+      const initialInventory = inventoryByMonth.get(index) || 0;
+
+      monthData.inventoryValue = initialInventory;
+      monthData.purchaseAmount = initialInventory + monthData.cogs;
+      monthData.profit = monthData.salesAmount - monthData.cogs;
+      monthData.profitPercent =
+        monthData.cogs > 0 ? (monthData.profit / monthData.cogs) * 100 : 0;
+    });
+
+    const cardData = transactions.map((t) => ({
+      topSelling: t.TransactionItem.map((i) => {
+        return {
+          soldQty: i.quantity,
+          soldAmount: i.totalPrice,
+          productName: i.Product.productName,
+          remainingQty: i.Product.quantity,
+          id: i.Product.id,
+        };
+      }),
+    }));
+
+    // Top Selling Product
+    const allTopSelling = cardData.flatMap((c) => c.topSelling);
+
+    // Aggregate products by id to sum up quantities and amounts
+    const productMap = allTopSelling.reduce((map, product) => {
+      const key = product.id;
+      if (!map.has(key)) {
+        map.set(key, {
+          productName: product.productName,
+          soldQty: 0,
+          soldAmount: 0,
+          remainingQty: product.remainingQty,
+        });
+      }
+      const existing = map.get(key);
+      existing.soldQty += Number(product.soldQty);
+      existing.soldAmount += Number(product.soldAmount);
+      existing.remainingQty = product.remainingQty; // Take the last remainingQty
+      return map;
+    }, new Map());
+
+    // Convert to array and sort by sold quantity (descending)
+    const allTopSellingProducts = Array.from(productMap.values())
+      .sort((a, b) => b.soldQty - a.soldQty)
+      .map((product) => ({
+        productName: product.productName,
+        soldQty: String(product.soldQty),
+        remainingQty: String(product.remainingQty),
+        soldAmount: String(product.soldAmount),
+      }));
+
+    const topSellingProduct =
+      allTopSellingProducts.length > 0
+        ? allTopSellingProducts
+        : {
+            productName: "",
+            soldQty: "",
+            remainingQty: "",
+            soldAmount: "",
+          };
+
+    // Initialize monthly data structure
+    const monthlyData = Object.fromEntries(
+      months.map((m) => [m, { sales: 0, purchases: 0 }])
+    );
+
+    // Process transactions for sales and sold products' purchases
+    transactions.forEach((t) => {
+      const month = new Date(t.createdAt).toLocaleString("default", {
+        month: "short",
+      });
+      const sales = Number(t.Payments[0]?.payments[0]?.totalPay || 0);
+      const cost = t.TransactionItem.reduce(
+        (sum, item) =>
+          sum + Number(item.Product.costPrice) * Number(item.quantity),
+        0
+      );
+
+      monthlyData[month].sales += sales;
+      monthlyData[month].purchases += cost;
+    });
+
+    products.forEach((p) => {
+      if (p.quantity > 0) {
+        // Only include products still in inventory
+        const month = new Date(p.createdAt).toLocaleString("default", {
+          month: "short",
+        });
+        const purchaseValue = Number(p.costPrice) * Number(p.quantity);
+        monthlyData[month].purchases += purchaseValue;
+      }
+    });
+
+    // Convert to final array format
+    const data = months.map((month) => ({
+      month,
+      sales: monthlyData[month].sales,
+      purchases: monthlyData[month].purchases,
+    }));
+
+    // Initialize data structures
+    const productMetrics = new Map<
+      string,
+      {
+        name: string;
+        revenue: number;
+        cogs: number;
+        unitsSold: number;
+        currentStock: number;
+      }
+    >();
+
+    // Preload current product quantities
+    products.forEach((p) => {
+      productMetrics.set(p.id, {
+        name: p.productName,
+        revenue: 0,
+        cogs: 0,
+        unitsSold: 0,
+        currentStock: Number(p.quantity),
+      });
+    });
+
+    // Single pass through transactions
+    transactions.forEach((t) => {
+      const transactionDate = new Date(t.createdAt);
+
+      let transactionCogs = 0;
+      let transactionItemsSold = 0;
+
+      t.TransactionItem.forEach((item) => {
+        const product = item.Product;
+        const quantity = Number(item.quantity);
+        const costPrice = Number(product.costPrice);
+        const sellingPrice = Number(product.sellingPrice);
+
+        // Update product metrics
+        const productData = productMetrics.get(product.id);
+        if (productData) {
+          productData.unitsSold += quantity;
+          productData.revenue += quantity * sellingPrice;
+          productData.cogs += quantity * costPrice;
+          productData.currentStock = Number(product.quantity); // Update with latest stock
+        }
+
+        transactionCogs += quantity * costPrice;
+        transactionItemsSold += quantity;
+      });
+    });
+
+    // Track product performance
+    const productMetricMap = new Map<
+      string,
+      {
+        name: string;
+        revenue: number;
+        cogs: number;
+        unitsSold: number;
+      }
+    >();
+
+    // Process transactions
+    transactions.forEach((t) => {
+      // Calculate COGS and product metrics
+      let transactionCOGS = 0;
+      t.TransactionItem.forEach((item) => {
+        const product = item.Product;
+        const qty = Number(item.quantity);
+        const cost = Number(product.costPrice);
+
+        // Update COGS
+        transactionCOGS += qty * cost;
+
+        // Update product metrics
+        const productData = productMetricMap.get(product.id) || {
+          name: product.productName,
+          revenue: 0,
+          cogs: 0,
+          unitsSold: 0,
+        };
+
+        productData.revenue += qty * Number(product.sellingPrice);
+        productData.cogs += qty * cost;
+        productData.unitsSold += qty;
+        productMetricMap.set(product.id, productData);
+      });
+    });
+
+    // Prepare top products
+    const productArray = Array.from(productMetricMap.values()).map((p) => ({
+      ...p,
+      profit: p.revenue - p.cogs,
+    }));
+
+    const topRevenue = productArray
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 10)
+      .map((p) => ({
+        product: p.name,
+        revenue: p.revenue,
+        unitsSold: p.unitsSold,
+      }));
+
+    const topProfit = productArray
+      .sort((a, b) => b.profit - a.profit)
+      .slice(0, 10)
+      .map((p) => ({
+        product: p.name,
+        profit: p.profit,
+        margin: ((p.profit / p.revenue) * 100).toFixed(1) + "%",
+      }));
+
+    const returnedData = {
+      overview: {
+        cardData: monthlyCardData.map((m) => ({
+          month: m.month,
+          salesAmount: m.salesAmount,
+          purchaseAmount: m.purchaseAmount,
+          inventoryValue: m.inventoryValue,
+          profit: m.profit,
+          profitPercent: Number(m.profitPercent.toFixed(2)),
+          cogs: m.cogs,
+        })),
+        lowStockProducts,
+        outOfStock,
+        topSellingProduct,
+        data,
+      },
+      products: { topRevenue, topProfit },
+    };
+
+    res.status(StatusCodes.OK).json({ msg: "Success", data: returnedData });
   },
 };

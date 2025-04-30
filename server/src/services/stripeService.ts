@@ -33,7 +33,7 @@ export class StripeService {
           quantity: 1,
         },
       ],
-      success_url: `${process.env.STRIPE_REDIRECT_SUCCESS_URL}/settings?q=billing`,
+      success_url: `${process.env.STRIPE_REDIRECT_SUCCESS_URL}/api/revalidate?tag=subscriptionHistory`,
       cancel_url: `${process.env.STRIPE_REDIRECT_CANCEL_URL}/settings?q=billing`,
     } as Stripe.Checkout.SessionCreateParams);
 
@@ -58,7 +58,7 @@ export class StripeService {
 
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: subscription.stripeCustomerID,
-      return_url: `${process.env.STRIPE_REDIRECT_SUCCESS_URL}/settings?q=billing`,
+      return_url: `${process.env.STRIPE_REDIRECT_SUCCESS_URL}/api/revalidate?tag=subscriptionHistory`,
       flow_data: {
         type: "subscription_update_confirm",
         subscription_update_confirm: {
@@ -111,7 +111,7 @@ export class StripeService {
   }) {
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: subscription.stripeCustomerID,
-      return_url: `${process.env.STRIPE_REDIRECT_SUCCESS_URL}/settings?q=billing`,
+      return_url: `${process.env.STRIPE_REDIRECT_SUCCESS_URL}/api/revalidate?tag=subscriptionHistory`,
     });
 
     return portalSession.url;
@@ -124,7 +124,7 @@ export class StripeService {
     // Create a billing portal session specifically for canceling a subscription.
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: subscription.stripeCustomerID,
-      return_url: `${process.env.STRIPE_REDIRECT_SUCCESS_URL}/settings?q=billing`,
+      return_url: `${process.env.STRIPE_REDIRECT_SUCCESS_URL}/api/revalidate?tag=subscriptionHistory`,
       flow_data: {
         type: "subscription_cancel",
         subscription_cancel: {
