@@ -159,10 +159,10 @@ const generateInvoiceEmail = (invoice, companyData, customerData, products, paym
   ${createProductTable(products)}
 
   <div style="text-align: right; margin-top: 20px;">
-    <p style="margin: 5px 0;">Subtotal: $${paymentData.subTotal}</p>
-    <p style="margin: 5px 0;">VAT: $${paymentData.vat}</p>
+    <p style="margin: 5px 0;">Subtotal: ₦${paymentData.subTotal}</p>
+    <p style="margin: 5px 0;">VAT: ₦${paymentData.vat}</p>
     <h3 style="margin: 10px 0; font-size: 18px;">
-      Total Amount Paid: $${paymentData.totalPay}
+      Total Amount Paid: ₦${paymentData.totalPay}
     </h3>
   </div>
 
@@ -181,7 +181,7 @@ const generateInvoiceEmail = (invoice, companyData, customerData, products, paym
    ${paymentData.balancedOwed > 0 && paymentData.balancedOwed !== null
     ? `
       <p style="color: #d9534f; margin: 10px 0 0;">
-        Remaining Balance: $${paymentData.balancedOwed}
+        Remaining Balance: ₦${paymentData.balancedOwed}
       </p>
     `
     : ""}

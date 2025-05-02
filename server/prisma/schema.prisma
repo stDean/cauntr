@@ -287,6 +287,8 @@ model Product {
   @@unique([sku, companyId, tenantId])
   @@index([productName])
   @@index([sku])
+  @@index([companyId])
+  @@index([tenantId])
 }
 
 model ProductDeletionEvent {
@@ -373,6 +375,9 @@ model Customer {
   @@index([name])
   @@index([companyId])
   @@index([tenantId])
+  @@index([id])
+  @@index([phone])
+  @@index([email])
 }
 
 // Payment Models

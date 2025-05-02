@@ -179,6 +179,7 @@ export const getSoldOrSwapProducts = async ({
       createdBy: true,
       Payments: { include: { payments: true } },
     },
+    orderBy: { createdAt: "desc" },
   });
 
   if (!transactions) throw new NotFoundError("No Product found.");
@@ -237,11 +238,14 @@ export const generateSalesReport = (transactions: any) => {
     categories: new Set(),
     totalStockSold: 0,
     topSellingProduct: { name: "", quantity: 0 },
-    productQuantities: {} as Record<string, number>,
+    productStats: {} as Record<
+      string,
+      { quantity: number; totalSales: number }
+    >,
   };
 
   transactions.forEach((transaction: any) => {
-    // Calculate total sales
+    // Calculate total sales from payments
     transaction.Payments.forEach((payment: any) => {
       payment.payments.forEach((p: any) => {
         report.totalSales += parseFloat(p.totalPay) || 0;
@@ -254,19 +258,44 @@ export const generateSalesReport = (transactions: any) => {
       report.categories.add(item.Product.productType);
 
       // Calculate total stock sold
-      report.totalStockSold += item.quantity;
+      const quantity = item.quantity;
+      report.totalStockSold += quantity;
 
-      // Track product quantities
+      // Calculate product statistics
       const productName = item.Product.productName;
-      report.productQuantities[productName] =
-        (report.productQuantities[productName] || 0) + item.quantity;
+      const price = item.pricePerUnit;
+      const productSales = quantity * price;
+
+      if (!report.productStats[productName]) {
+        report.productStats[productName] = {
+          quantity: 0,
+          totalSales: 0,
+        };
+      }
+
+      report.productStats[productName].quantity += quantity;
+      report.productStats[productName].totalSales += productSales;
     });
   });
 
-  // Find top selling product
-  report.topSellingProduct = Object.entries(report.productQuantities).reduce(
-    (max, [name, quantity]) =>
-      quantity > max.quantity ? { name, quantity } : max,
+  // Find top selling product with quantity -> sales value tiebreaker
+  report.topSellingProduct = Object.entries(report.productStats).reduce(
+    (max, [name, stats]) => {
+      // First compare quantities
+      if (stats.quantity > max.quantity) {
+        return { name, quantity: stats.quantity };
+      }
+
+      // If quantities are equal, compare total sales value
+      if (stats.quantity === max.quantity) {
+        const currentMaxSales = report.productStats[max.name]?.totalSales || 0;
+        if (stats.totalSales > currentMaxSales) {
+          return { name, quantity: stats.quantity };
+        }
+      }
+
+      return max;
+    },
     { name: "", quantity: 0 }
   );
 
@@ -310,82 +339,88 @@ export const TransactionsCtrl = {
 
     const { company, user: authUser } = await userNdCompany(user);
 
-    const transactionRes = await prisma.$transaction(async (tx) => {
-      const product = await productUtils.findProductBySKU(
-        tx,
-        params.sku,
-        company
-      );
-      productUtils.validateProductStock(product, transactionBody.quantity);
+    const invoiceNumber = await generateInvoiceNo({
+      companyId: company.id,
+      tenantId: company.tenantId,
+    });
 
-      const updatedProduct = await productUtils.updateProductQuantity(
-        tx,
-        product.id,
-        -transactionBody.quantity
-      );
-
-      let customer;
-      if (customerDetails) {
-        customer = await customerUtils.upsertCustomer(
+    const transactionRes = await prisma.$transaction(
+      async (tx) => {
+        const product = await productUtils.findProductBySKU(
           tx,
-          customerDetails,
+          params.sku,
           company
         );
-      }
+        productUtils.validateProductStock(product, transactionBody.quantity);
 
-      const transaction = await transactionUtils.createTransaction(
-        tx,
-        TransactionType.SALE,
-        {
-          company,
-          userId: authUser.id,
-          customerId: customer && customer.id,
-          items: [
-            {
-              productId: updatedProduct.id,
-              quantity: transactionBody.quantity,
-              pricePerUnit: transactionBody.price,
-              direction: Direction.DEBIT,
-            },
-          ],
+        const updatedProduct = await productUtils.updateProductQuantity(
+          tx,
+          product.id,
+          -transactionBody.quantity
+        );
+
+        let customer;
+        if (customerDetails) {
+          customer = await customerUtils.upsertCustomer(
+            tx,
+            customerDetails,
+            company
+          );
         }
-      );
 
-      const paymentPlan = await paymentUtils.createPaymentPlan(tx, {
-        customerId: customer && customer.id,
-        ...payment,
-        amountPaid:
-          Number(transactionBody.price) * Number(transactionBody.quantity),
-        balanceOwed: payment.balanceOwed,
-        frequency: payment.frequency,
-        transId: transaction.id,
-        vat,
-        totalPay,
-        acctPaidTo:
-          payment.paymentMethod === "BANK_TRANSFER" ? acctPaidTo : undefined,
-      });
+        const transaction = await transactionUtils.createTransaction(
+          tx,
+          TransactionType.SALE,
+          {
+            company,
+            userId: authUser.id,
+            customerId: customer && customer.id,
+            items: [
+              {
+                productId: updatedProduct.id,
+                quantity: transactionBody.quantity,
+                pricePerUnit: transactionBody.price,
+                direction: Direction.DEBIT,
+              },
+            ],
+          }
+        );
 
-      const invoiceNumber = await generateInvoiceNo({
-        companyId: company.id,
-        tenantId: company.tenantId,
-      });
+        const paymentPlan = await paymentUtils.createPaymentPlan(tx, {
+          customerId: customer && customer.id,
+          ...payment,
+          amountPaid:
+            Number(transactionBody.price) * Number(transactionBody.quantity),
+          balanceOwed: payment.balanceOwed,
+          frequency: payment.frequency,
+          transId: transaction.id,
+          vat,
+          totalPay,
+          acctPaidTo:
+            payment.paymentMethod === "BANK_TRANSFER" ? acctPaidTo : undefined,
+        });
 
-      const createdInvoice = await tx.invoice.create({
-        data: {
-          invoiceNo: invoiceNumber,
-          paymentDate: transaction.createdAt,
-          tenantId: company.tenantId,
-          companyId: company.id,
-          transactionId: transaction.id,
-          status:
-            payment.balanceOwed && Number(payment.balanceOwed) !== 0
-              ? "PART_PAID"
-              : "PAID",
-        },
-      });
+        const createdInvoice = await tx.invoice.create({
+          data: {
+            invoiceNo: invoiceNumber,
+            paymentDate: transaction.createdAt,
+            tenantId: company.tenantId,
+            companyId: company.id,
+            transactionId: transaction.id,
+            status:
+              payment.balanceOwed && Number(payment.balanceOwed) !== 0
+                ? "PART_PAID"
+                : "PAID",
+          },
+        });
 
-      return { createdInvoice };
-    });
+        return { createdInvoice };
+      },
+      {
+        maxWait: 10000,
+        timeout: 10000,
+      }
+    );
 
     if (customerDetails && customerDetails.email) {
       await emailService.sendInvoice(transactionRes.createdInvoice.invoiceNo);
@@ -420,6 +455,11 @@ export const TransactionsCtrl = {
     const { company, user: authUser } = await userNdCompany(user);
 
     validationUtils.validateRequiredFields(body, ["transactions"]);
+
+    const invoiceNumber = await generateInvoiceNo({
+      companyId: company.id,
+      tenantId: company.tenantId,
+    });
 
     const { createdInvoice, customerDetails } = await prisma.$transaction(
       async (tx) => {
@@ -466,11 +506,6 @@ export const TransactionsCtrl = {
           }
         );
 
-        const invoiceNumber = await generateInvoiceNo({
-          companyId: company.id,
-          tenantId: company.tenantId,
-        });
-
         const createdInvoice = await tx.invoice.create({
           data: {
             invoiceNo: invoiceNumber,
@@ -505,6 +540,10 @@ export const TransactionsCtrl = {
         });
 
         return { createdInvoice, customerDetails: body.customerDetails };
+      },
+      {
+        maxWait: 10000,
+        timeout: 10000,
       }
     );
 

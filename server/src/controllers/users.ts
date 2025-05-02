@@ -156,7 +156,6 @@ export const UserCtrl = {
       req.body.password = user.password;
     }
 
-    console.log({ ...req.body });
     // Use a database transaction to update both bank details and user record atomically
     const updatedUser = await prisma.user.update({
       where: { id: user.id, tenantId: company.tenantId, companyId: company.id },

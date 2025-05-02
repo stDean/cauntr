@@ -80,6 +80,7 @@ export const getSoldOrSwapProducts = async ({ company, inArray, }) => {
             createdBy: true,
             Payments: { include: { payments: true } },
         },
+        orderBy: { createdAt: "desc" },
     });
     if (!transactions)
         throw new NotFoundError("No Product found.");
@@ -126,10 +127,10 @@ export const generateSalesReport = (transactions) => {
         categories: new Set(),
         totalStockSold: 0,
         topSellingProduct: { name: "", quantity: 0 },
-        productQuantities: {},
+        productStats: {},
     };
     transactions.forEach((transaction) => {
-        // Calculate total sales
+        // Calculate total sales from payments
         transaction.Payments.forEach((payment) => {
             payment.payments.forEach((p) => {
                 report.totalSales += parseFloat(p.totalPay) || 0;
@@ -140,15 +141,37 @@ export const generateSalesReport = (transactions) => {
             // Track categories
             report.categories.add(item.Product.productType);
             // Calculate total stock sold
-            report.totalStockSold += item.quantity;
-            // Track product quantities
+            const quantity = item.quantity;
+            report.totalStockSold += quantity;
+            // Calculate product statistics
             const productName = item.Product.productName;
-            report.productQuantities[productName] =
-                (report.productQuantities[productName] || 0) + item.quantity;
+            const price = item.pricePerUnit;
+            const productSales = quantity * price;
+            if (!report.productStats[productName]) {
+                report.productStats[productName] = {
+                    quantity: 0,
+                    totalSales: 0,
+                };
+            }
+            report.productStats[productName].quantity += quantity;
+            report.productStats[productName].totalSales += productSales;
         });
     });
-    // Find top selling product
-    report.topSellingProduct = Object.entries(report.productQuantities).reduce((max, [name, quantity]) => quantity > max.quantity ? { name, quantity } : max, { name: "", quantity: 0 });
+    // Find top selling product with quantity -> sales value tiebreaker
+    report.topSellingProduct = Object.entries(report.productStats).reduce((max, [name, stats]) => {
+        // First compare quantities
+        if (stats.quantity > max.quantity) {
+            return { name, quantity: stats.quantity };
+        }
+        // If quantities are equal, compare total sales value
+        if (stats.quantity === max.quantity) {
+            const currentMaxSales = report.productStats[max.name]?.totalSales || 0;
+            if (stats.totalSales > currentMaxSales) {
+                return { name, quantity: stats.quantity };
+            }
+        }
+        return max;
+    }, { name: "", quantity: 0 });
     return {
         totalSales: Number(report.totalSales.toFixed(2)),
         categories: report.categories.size,
@@ -179,6 +202,10 @@ export const TransactionsCtrl = {
         // Add validation for required fields
         validationUtils.validateRequiredFields(body, ["transaction"]);
         const { company, user: authUser } = await userNdCompany(user);
+        const invoiceNumber = await generateInvoiceNo({
+            companyId: company.id,
+            tenantId: company.tenantId,
+        });
         const transactionRes = await prisma.$transaction(async (tx) => {
             const product = await productUtils.findProductBySKU(tx, params.sku, company);
             productUtils.validateProductStock(product, transactionBody.quantity);
@@ -211,10 +238,6 @@ export const TransactionsCtrl = {
                 totalPay,
                 acctPaidTo: payment.paymentMethod === "BANK_TRANSFER" ? acctPaidTo : undefined,
             });
-            const invoiceNumber = await generateInvoiceNo({
-                companyId: company.id,
-                tenantId: company.tenantId,
-            });
             const createdInvoice = await tx.invoice.create({
                 data: {
                     invoiceNo: invoiceNumber,
@@ -228,6 +251,9 @@ export const TransactionsCtrl = {
                 },
             });
             return { createdInvoice };
+        }, {
+            maxWait: 10000,
+            timeout: 10000,
         });
         if (customerDetails && customerDetails.email) {
             await emailService.sendInvoice(transactionRes.createdInvoice.invoiceNo);
@@ -259,6 +285,10 @@ export const TransactionsCtrl = {
         const { user, body } = req;
         const { company, user: authUser } = await userNdCompany(user);
         validationUtils.validateRequiredFields(body, ["transactions"]);
+        const invoiceNumber = await generateInvoiceNo({
+            companyId: company.id,
+            tenantId: company.tenantId,
+        });
         const { createdInvoice, customerDetails } = await prisma.$transaction(async (tx) => {
             const products = await Promise.all(body.transactions.map((txn) => productUtils.findProductBySKU(tx, txn.sku, company)));
             validationUtils.validateStockQuantities(products, body.transactions);
@@ -277,10 +307,6 @@ export const TransactionsCtrl = {
                     pricePerUnit: txn.sellingPrice || 0,
                     direction: Direction.DEBIT,
                 })),
-            });
-            const invoiceNumber = await generateInvoiceNo({
-                companyId: company.id,
-                tenantId: company.tenantId,
             });
             const createdInvoice = await tx.invoice.create({
                 data: {
@@ -311,6 +337,9 @@ export const TransactionsCtrl = {
                     : undefined,
             });
             return { createdInvoice, customerDetails: body.customerDetails };
+        }, {
+            maxWait: 10000,
+            timeout: 10000,
         });
         if (customerDetails && customerDetails.email) {
             await emailService.sendInvoice(createdInvoice.invoiceNo);

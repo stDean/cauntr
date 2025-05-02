@@ -198,10 +198,6 @@ export const InvoiceCtrl = {
                     ?.acctName,
             },
         };
-        console.log({
-            a: invoice.Transaction?.Payments[0].payments[0].acctPaidTo?.bank
-                ?.bankName,
-        });
         res.status(StatusCodes.OK).json({ msg: "Success", data: returnedData });
     },
     resendInvoice: async (req, res) => {

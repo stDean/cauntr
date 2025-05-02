@@ -240,8 +240,6 @@ export const InventoryCtrl = {
     const { email, companyId } = req.user;
     const { company } = await userNdCompany({ email, companyId });
 
-    console.log({ ...req.params });
-
     // Fetch products matching the specified type and brand.
     const products = await prisma.product.findMany({
       where: {
@@ -869,44 +867,59 @@ export const InventoryCtrl = {
     if (!company) throw new BadRequestError("No company found!");
 
     // Parallel data fetching
-    const [transactions, products, lowStockProducts, outOfStock] =
-      await Promise.all([
-        prisma.transaction.findMany({
-          where: {
-            companyId: company.id,
-            tenantId: company.tenantId,
-            type: { in: ["SALE", "BULK_SALE"] },
+    const [transactions, allProducts] = await Promise.all([
+      prisma.transaction.findMany({
+        where: {
+          companyId: company.id,
+          tenantId: company.tenantId,
+          type: { in: ["SALE", "BULK_SALE"] },
+        },
+        include: {
+          TransactionItem: { include: { Product: true } },
+          Payments: {
+            include: { payments: { orderBy: { createdAt: "desc" } } },
           },
-          include: {
-            TransactionItem: { include: { Product: true } },
-            Payments: {
-              include: { payments: { orderBy: { createdAt: "desc" } } },
-            },
-          },
-        }),
+        },
+      }),
 
-        prisma.product.findMany({
-          where: { companyId: company.id, tenantId: company.tenantId },
-        }),
+      prisma.product.findMany({
+        where: {
+          companyId: company.id,
+          tenantId: company.tenantId,
+        },
+      }),
 
-        prisma.product.findMany({
-          where: {
-            companyId: company.id,
-            tenantId: company.tenantId,
-            quantity: { lte: 20 },
-          },
-          select: { productName: true, quantity: true },
-        }),
+      // prisma.product.findMany({
+      //   where: { companyId: company.id, tenantId: company.tenantId },
+      // }),
 
-        prisma.product.findMany({
-          where: {
-            companyId: company.id,
-            tenantId: company.tenantId,
-            quantity: { lte: 0 },
-          },
-          select: { productName: true, updatedAt: true },
-        }),
-      ]);
+      // prisma.product.findMany({
+      //   where: {
+      //     companyId: company.id,
+      //     tenantId: company.tenantId,
+      //     quantity: { lte: 20 },
+      //   },
+      //   select: { productName: true, quantity: true },
+      // }),
+
+      // prisma.product.findMany({
+      //   where: {
+      //     companyId: company.id,
+      //     tenantId: company.tenantId,
+      //     quantity: { lte: 0 },
+      //   },
+      //   select: { productName: true, updatedAt: true },
+      // }),
+    ]);
+
+    // Process in-memory
+    const lowStockProducts = allProducts
+      .filter((p) => p.quantity <= 20)
+      .map((p) => ({ productName: p.productName, quantity: p.quantity }));
+
+    const outOfStock = allProducts
+      .filter((p) => p.quantity <= 0)
+      .map((p) => ({ productName: p.productName, updatedAt: p.updatedAt }));
 
     // Initialize monthly metrics
     const months = Array.from({ length: 12 }, (_, i) =>
@@ -929,7 +942,7 @@ export const InventoryCtrl = {
     const purchaseByMonth = new Map<number, number>();
 
     // 1. Process products to track initial inventory
-    products.forEach((p) => {
+    allProducts.forEach((p) => {
       const createdMonth = new Date(p.createdAt).getMonth();
       const value = Number(p.sellingPrice) * Number(p.quantity);
       const value2 = Number(p.costPrice) * Number(p.quantity);
@@ -957,8 +970,6 @@ export const InventoryCtrl = {
         const createdMonth = new Date(product.createdAt).getMonth();
         const quantity = Number(item.quantity);
         const costPrice = Number(product.costPrice);
-
-        console.log({ costPrice });
 
         const itemCOGS = costPrice * quantity;
         monthlyCardData[createdMonth].cogs += itemCOGS;
@@ -1051,7 +1062,7 @@ export const InventoryCtrl = {
       monthlyData[month].purchases += cost;
     });
 
-    products.forEach((p) => {
+    allProducts.forEach((p) => {
       if (p.quantity > 0) {
         // Only include products still in inventory
         const month = new Date(p.createdAt).toLocaleString("default", {
@@ -1082,7 +1093,7 @@ export const InventoryCtrl = {
     >();
 
     // Preload current product quantities
-    products.forEach((p) => {
+    allProducts.forEach((p) => {
       productMetrics.set(p.id, {
         name: p.productName,
         revenue: 0,
