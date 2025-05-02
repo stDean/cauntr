@@ -1,8 +1,8 @@
 import { Request, NextFunction, Response, Router } from "express";
-import { prisma } from "../utils/prisma";
+import { prisma } from "../utils/prisma.js";
 import Stripe from "stripe";
-import { BadRequestError, CustomAPIError } from "../errors";
-import { getTierByPriceId } from "../data/subTier";
+import { BadRequestError, CustomAPIError } from "../errors/index.js";
+import { getTierByPriceId } from "../data/subTier.js";
 import { BillingType, Tier } from "@prisma/client";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {

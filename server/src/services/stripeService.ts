@@ -1,7 +1,7 @@
 import { Company } from "@prisma/client";
 import Stripe from "stripe";
-import { BadRequestError } from "../errors";
-import { subscriptionTiers, TierNames } from "../data/subTier";
+import { BadRequestError } from "../errors/index.js";
+import { subscriptionTiers, TierNames } from "../data/subTier.js";
 
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error("Stripe secret key is missing. Please check your .env file.");

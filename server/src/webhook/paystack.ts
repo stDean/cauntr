@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response, Router } from "express";
-import { prisma } from "../utils/prisma";
+import { prisma } from "../utils/prisma.js";
 import crypto from "crypto";
 
 const router = Router();

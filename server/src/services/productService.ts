@@ -1,7 +1,7 @@
 import { Condition, Supplier } from "@prisma/client";
-import { generateSKU } from "../utils/helper";
-import { ProductInput, productUtils } from "../utils/helperUtils";
-import { prisma } from "../utils/prisma";
+import { generateSKU } from "../utils/helper.js";
+import { ProductInput, productUtils } from "../utils/helperUtils.js";
+import { prisma } from "../utils/prisma.js";
 
 export const productService = {
   findProductBySerial: async (serialNo: string, companyId: string) => {

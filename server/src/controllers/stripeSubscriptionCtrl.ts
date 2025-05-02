@@ -1,10 +1,10 @@
 import { BillingType, Tier } from "@prisma/client";
 import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
-import { getTierByPriceId, TierNames } from "../data/subTier";
-import { BadRequestError, NotFoundError } from "../errors";
-import { StripeService } from "../services/stripeService";
-import { prisma } from "../utils/prisma";
+import { getTierByPriceId, TierNames } from "../data/subTier.js";
+import { BadRequestError, NotFoundError } from "../errors/index.js";
+import { StripeService } from "../services/stripeService.js";
+import { prisma } from "../utils/prisma.js";
 import Stripe from "stripe";
 
 interface BillingHistory {

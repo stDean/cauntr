@@ -238,7 +238,7 @@ model UserBank {
   bankName         String
   acctNo           String?
   acctName         String?
-  CompanyAccount   CompanyAccount? @relation(fields: [companyAccountId], references: [id])
+  CompanyAccount   CompanyAccount? @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
   companyAccountId String?
   AccountPaidTo    AccountPaidTo[]
 }
@@ -269,6 +269,8 @@ model Product {
   purchaseDate DateTime  @default(now())
   condition    Condition @default(NEW)
   quantity     Int       @default(1)
+  minStock     Int       @default(0)
+  maxStock     Int       @default(0)
 
   // Audits
   createdAt DateTime @default(now())
@@ -309,7 +311,7 @@ model Supplier {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   products         Product[]
-  Company          Company?  @relation(fields: [companyId], references: [id])
+  Company          Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   companyId        String?
 
   @@unique([name, contact])
@@ -391,7 +393,7 @@ model PaymentPlan {
   payments         Payment[]
   Customer         Customer?            @relation(fields: [customerId], references: [id])
   customerId       String?
-  Transaction      Transaction?         @relation(fields: [transactionId], references: [id])
+  Transaction      Transaction?         @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   transactionId    String?
 }
 
@@ -405,7 +407,7 @@ model Payment {
   paymentDate   DateTime       @default(now())
   method        PaymentMethod
   paymentPlanId String?
-  PaymentPlan   PaymentPlan?   @relation(fields: [paymentPlanId], references: [id])
+  PaymentPlan   PaymentPlan?   @relation(fields: [paymentPlanId], references: [id], onDelete: Cascade)
   createdAt     DateTime       @default(now())
   acctPaidTo    AccountPaidTo?
 
@@ -414,9 +416,9 @@ model Payment {
 
 model AccountPaidTo {
   id         String    @id @default(uuid())
-  Payment    Payment?  @relation(fields: [paymentId], references: [id])
+  Payment    Payment?  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
   paymentId  String?   @unique
-  bank       UserBank? @relation(fields: [userBankId], references: [id])
+  bank       UserBank? @relation(fields: [userBankId], references: [id], onDelete: Cascade)
   userBankId String?   @unique
 }
 
@@ -446,9 +448,9 @@ model Invoice {
   paymentDate   DateTime
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
-  Company       Company?      @relation(fields: [companyId], references: [id])
+  Company       Company?      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   companyId     String?
-  Transaction   Transaction?  @relation(fields: [transactionId], references: [id])
+  Transaction   Transaction?  @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   transactionId String?       @unique
 
   @@index([invoiceNo])

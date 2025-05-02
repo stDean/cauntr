@@ -136,7 +136,7 @@ export class PayStackService {
             return { error: "Something went wrong" };
         }
         const my_plans_array = Array.from(Object.values(my_plans));
-        const subscriptions = subs.data.filter(subscription => subscription.status === "active" &&
+        const subscriptions = subs.data.filter((subscription) => subscription.status === "active" &&
             my_plans_array.indexOf(subscription.plan.plan_code) !== -1);
         return { subscriptions };
     }
@@ -145,7 +145,7 @@ export class PayStackService {
         if (customerRes.status === false) {
             return { error: "No customer with that email" };
         }
-        const theCustomer = customerRes.data.find(customer => customer.email === email);
+        const theCustomer = customerRes.data.find((customer) => customer.email === email);
         return { theCustomer };
     }
 }

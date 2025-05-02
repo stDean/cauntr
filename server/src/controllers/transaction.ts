@@ -8,8 +8,8 @@ import {
 } from "@prisma/client";
 import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
-import { BadRequestError, NotFoundError } from "../errors";
-import { generateSKU, userNdCompany } from "../utils/helper";
+import { BadRequestError, NotFoundError } from "../errors/index.js";
+import { generateSKU, userNdCompany } from "../utils/helper.js";
 import {
   customerUtils,
   generateInvoice,
@@ -20,10 +20,10 @@ import {
   productUtils,
   transactionUtils,
   validationUtils,
-} from "../utils/helperUtils";
-import { prisma } from "../utils/prisma";
-import { supplierService } from "../services/supplierService";
-import { emailService } from "../services/emailService";
+} from "../utils/helperUtils.js";
+import { prisma } from "../utils/prisma.js";
+import { supplierService } from "../services/supplierService.js";
+import { emailService } from "../services/emailService.js";
 
 interface SwapProductRequest {
   outgoing: { sku: string; quantity: number };

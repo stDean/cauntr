@@ -1,27 +1,27 @@
-import { Condition, Product, Supplier } from "@prisma/client";
+import { Condition, Product } from "@prisma/client";
 import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
 import {
   BadRequestError,
   NotFoundError,
   UnauthenticatedError,
-} from "../errors";
-import { productService } from "../services/productService";
-import { supplierService } from "../services/supplierService";
+} from "../errors/index.js";
+import { productService } from "../services/productService.js";
+import { supplierService } from "../services/supplierService.js";
 import {
   generateSKU,
   handleBuybackProduct,
   parseDate,
   productHelper,
   userNdCompany,
-} from "../utils/helper";
+} from "../utils/helper.js";
 import {
   ProductInput,
   productUtils,
   responseUtils,
-} from "../utils/helperUtils";
-import { prisma } from "../utils/prisma";
-import { generateSalesReport, getSoldOrSwapProducts } from "./transaction";
+} from "../utils/helperUtils.js";
+import { prisma } from "../utils/prisma.js";
+import { generateSalesReport, getSoldOrSwapProducts } from "./transaction.js";
 
 export const InventoryCtrl = {
   /**
@@ -888,34 +888,26 @@ export const InventoryCtrl = {
           tenantId: company.tenantId,
         },
       }),
-
-      // prisma.product.findMany({
-      //   where: { companyId: company.id, tenantId: company.tenantId },
-      // }),
-
-      // prisma.product.findMany({
-      //   where: {
-      //     companyId: company.id,
-      //     tenantId: company.tenantId,
-      //     quantity: { lte: 20 },
-      //   },
-      //   select: { productName: true, quantity: true },
-      // }),
-
-      // prisma.product.findMany({
-      //   where: {
-      //     companyId: company.id,
-      //     tenantId: company.tenantId,
-      //     quantity: { lte: 0 },
-      //   },
-      //   select: { productName: true, updatedAt: true },
-      // }),
     ]);
 
     // Process in-memory
     const lowStockProducts = allProducts
-      .filter((p) => p.quantity <= 20)
-      .map((p) => ({ productName: p.productName, quantity: p.quantity }));
+      .reduce((acc: any, p: any) => {
+        const existingProduct = acc.find(
+          (prod: any) => prod.productName === p.productName
+        );
+        if (existingProduct) {
+          existingProduct.quantity += p.quantity;
+        } else {
+          acc.push({
+            productName: p.productName,
+            quantity: p.quantity,
+            minStock: p.minStock || 0,
+          });
+        }
+        return acc;
+      }, [] as any[])
+      .filter((p: any) => p.quantity <= (p.minStock || 0));
 
     const outOfStock = allProducts
       .filter((p) => p.quantity <= 0)
@@ -1105,8 +1097,6 @@ export const InventoryCtrl = {
 
     // Single pass through transactions
     transactions.forEach((t) => {
-      const transactionDate = new Date(t.createdAt);
-
       let transactionCogs = 0;
       let transactionItemsSold = 0;
 
@@ -1212,5 +1202,41 @@ export const InventoryCtrl = {
     };
 
     res.status(StatusCodes.OK).json({ msg: "Success", data: returnedData });
+  },
+
+  manageRestockLevel: async (req: Request, res: Response) => {
+    const { email, companyId } = req.user;
+    const { company } = await userNdCompany({ email, companyId });
+    const { restock, productName } = req.body;
+    console.log({ restock, productName });
+
+    if (!company) throw new BadRequestError("No company found!");
+
+    // Update the restock level for the company
+    const products = await prisma.product.findMany({
+      where: {
+        companyId: company.id,
+        tenantId: company.tenantId,
+        productName,
+      },
+    });
+
+    if (!products) throw new NotFoundError("Products not found");
+
+    await prisma.product.updateMany({
+      where: {
+        companyId: company.id,
+        tenantId: company.tenantId,
+        id: { in: products.map((p) => p.id) },
+      },
+      data: {
+        minStock: Number(restock.min) || 0,
+        maxStock: Number(restock.max) || 0,
+      },
+    });
+
+    res
+      .status(StatusCodes.OK)
+      .json({ msg: "Restock level updated successfully" });
   },
 };

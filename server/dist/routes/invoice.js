@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { AuthMiddleware } from "../middleware/auth.js";
 import { InvoiceCtrl } from "../controllers/invoice.js";
 import { CheckActiveSubscription } from "../middleware/action.js";
+import { AuthMiddleware } from "../middleware/auth.js";
 const router = Router();
 router
     .route("/all")

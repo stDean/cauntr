@@ -1,7 +1,5 @@
-import nodemailer from "nodemailer";
-import { Transporter } from "nodemailer";
-import { prisma } from "../utils/prisma";
-import { emit } from "process";
+import nodemailer, { Transporter } from "nodemailer";
+import { prisma } from "../utils/prisma.js";
 
 export interface EmailConfig {
   host: string;

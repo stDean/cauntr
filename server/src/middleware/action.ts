@@ -1,12 +1,11 @@
 import { NextFunction, Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
 import {
-  BadRequestError,
   CustomAPIError,
   NotFoundError,
-  UnauthenticatedError,
-} from "../errors";
-import { prisma } from "../utils/prisma";
+  UnauthenticatedError
+} from "../errors/index.js";
+import { prisma } from "../utils/prisma.js";
 
 export const SubscriptionMiddleware = async (
   req: Request,

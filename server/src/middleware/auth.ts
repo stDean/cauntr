@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import { UnauthenticatedError } from "../errors";
+import { UnauthenticatedError } from "../errors/index.js";
 
 declare module "express" {
 	export interface Request {

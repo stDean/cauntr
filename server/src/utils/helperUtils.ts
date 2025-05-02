@@ -11,7 +11,7 @@ import { BadRequestError, NotFoundError } from "../errors/index.js";
 import { StatusCodes } from "http-status-codes";
 import { Response } from "express";
 import { InvoiceNumber } from "invoice-number";
-import { prisma } from "./prisma";
+import { prisma } from "./prisma.js";
 
 export interface ProductInput {
   productName: string;

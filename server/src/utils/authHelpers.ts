@@ -1,6 +1,6 @@
 import crypto from "crypto";
-import { emailService } from "../services/emailService";
-import { prisma } from "./prisma";
+import { emailService } from "../services/emailService.js";
+import { prisma } from "./prisma.js";
 import jwt from "jsonwebtoken";
 
 export const generateVerificationToken = async (email: string) => {

@@ -710,30 +710,24 @@ export const InventoryCtrl = {
                     tenantId: company.tenantId,
                 },
             }),
-            // prisma.product.findMany({
-            //   where: { companyId: company.id, tenantId: company.tenantId },
-            // }),
-            // prisma.product.findMany({
-            //   where: {
-            //     companyId: company.id,
-            //     tenantId: company.tenantId,
-            //     quantity: { lte: 20 },
-            //   },
-            //   select: { productName: true, quantity: true },
-            // }),
-            // prisma.product.findMany({
-            //   where: {
-            //     companyId: company.id,
-            //     tenantId: company.tenantId,
-            //     quantity: { lte: 0 },
-            //   },
-            //   select: { productName: true, updatedAt: true },
-            // }),
         ]);
         // Process in-memory
         const lowStockProducts = allProducts
-            .filter((p) => p.quantity <= 20)
-            .map((p) => ({ productName: p.productName, quantity: p.quantity }));
+            .reduce((acc, p) => {
+            const existingProduct = acc.find((prod) => prod.productName === p.productName);
+            if (existingProduct) {
+                existingProduct.quantity += p.quantity;
+            }
+            else {
+                acc.push({
+                    productName: p.productName,
+                    quantity: p.quantity,
+                    minStock: p.minStock || 0,
+                });
+            }
+            return acc;
+        }, [])
+            .filter((p) => p.quantity <= (p.minStock || 0));
         const outOfStock = allProducts
             .filter((p) => p.quantity <= 0)
             .map((p) => ({ productName: p.productName, updatedAt: p.updatedAt }));
@@ -874,7 +868,6 @@ export const InventoryCtrl = {
         });
         // Single pass through transactions
         transactions.forEach((t) => {
-            const transactionDate = new Date(t.createdAt);
             let transactionCogs = 0;
             let transactionItemsSold = 0;
             t.TransactionItem.forEach((item) => {
@@ -959,5 +952,37 @@ export const InventoryCtrl = {
             products: { topRevenue, topProfit },
         };
         res.status(StatusCodes.OK).json({ msg: "Success", data: returnedData });
+    },
+    manageRestockLevel: async (req, res) => {
+        const { email, companyId } = req.user;
+        const { company } = await userNdCompany({ email, companyId });
+        const { restock, productName } = req.body;
+        console.log({ restock, productName });
+        if (!company)
+            throw new BadRequestError("No company found!");
+        // Update the restock level for the company
+        const products = await prisma.product.findMany({
+            where: {
+                companyId: company.id,
+                tenantId: company.tenantId,
+                productName,
+            },
+        });
+        if (!products)
+            throw new NotFoundError("Products not found");
+        await prisma.product.updateMany({
+            where: {
+                companyId: company.id,
+                tenantId: company.tenantId,
+                id: { in: products.map((p) => p.id) },
+            },
+            data: {
+                minStock: Number(restock.min) || 0,
+                maxStock: Number(restock.max) || 0,
+            },
+        });
+        res
+            .status(StatusCodes.OK)
+            .json({ msg: "Restock level updated successfully" });
     },
 };

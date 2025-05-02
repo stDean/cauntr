@@ -1,10 +1,10 @@
 import { scheduleJob } from "node-schedule";
 import { Tier } from "@prisma/client";
-import { BadRequestError, NotFoundError } from "../errors";
-import { my_plans } from "../utils/constants";
-import { paystackService } from "../services/paystackService";
-import { prisma } from "../utils/prisma";
-import { ScheduleJob } from "./schedule";
+import { BadRequestError, NotFoundError } from "../errors/index.js";
+import { my_plans } from "../utils/constants.js";
+import { paystackService } from "../services/paystackService.js";
+import { prisma } from "../utils/prisma.js";
+import { ScheduleJob } from "./schedule.js";
 
 export class SubscriptionJobs {
   /**

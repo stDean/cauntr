@@ -1,10 +1,10 @@
 import { Router } from "express";
-import AuthRouter from "./auth";
-import SubscriptionRouter from "./subscription";
-import InventoryRouter from "./inventory";
-import TransactionsRouter from "./transaction";
-import UsersRouter from "./user";
-import InvoiceRouter from "./invoice"
+import AuthRouter from "./auth.js";
+import SubscriptionRouter from "./subscription.js";
+import InventoryRouter from "./inventory.js";
+import TransactionsRouter from "./transaction.js";
+import UsersRouter from "./user.js";
+import InvoiceRouter from "./invoice.js"
 
 const router = Router();
 

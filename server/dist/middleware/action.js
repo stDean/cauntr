@@ -1,5 +1,5 @@
 import { StatusCodes } from "http-status-codes";
-import { CustomAPIError, NotFoundError, UnauthenticatedError, } from "../errors/index.js";
+import { CustomAPIError, NotFoundError, UnauthenticatedError } from "../errors/index.js";
 import { prisma } from "../utils/prisma.js";
 export const SubscriptionMiddleware = async (req, res, next) => {
     if (!req.user)

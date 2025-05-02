@@ -4,11 +4,11 @@ import {
   BadRequestError,
   NotFoundError,
   UnauthenticatedError,
-} from "../errors";
-import { emailService } from "../services/emailService";
-import { userNdCompany } from "../utils/helper";
-import { prisma } from "../utils/prisma";
-import { generateInvoiceNo } from "../utils/helperUtils";
+} from "../errors/index.js";
+import { emailService } from "../services/emailService.js";
+import { userNdCompany } from "../utils/helper.js";
+import { prisma } from "../utils/prisma.js";
+import { generateInvoiceNo } from "../utils/helperUtils.js";
 
 export const InvoiceCtrl = {
   createInvoice: async (req: Request, res: Response) => {

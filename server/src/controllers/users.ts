@@ -2,9 +2,9 @@ import { CustomerType, Role } from "@prisma/client";
 import argon2 from "argon2";
 import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
-import { BadRequestError, NotFoundError } from "../errors";
-import { userNdCompany } from "../utils/helper";
-import { prisma } from "../utils/prisma";
+import { BadRequestError, NotFoundError } from "../errors/index.js";
+import { userNdCompany } from "../utils/helper.js";
+import { prisma } from "../utils/prisma.js";
 
 export const getUserHelper = async ({
   id,

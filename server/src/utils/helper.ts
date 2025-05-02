@@ -1,8 +1,8 @@
 import { Direction, Product, Supplier, TransactionType } from "@prisma/client";
-import { BadRequestError, NotFoundError } from "../errors";
-import { prisma } from "./prisma";
-import { ProductInput, responseUtils, transactionUtils } from "./helperUtils";
-import { productService } from "../services/productService";
+import { BadRequestError, NotFoundError } from "../errors/index.js";
+import { prisma } from "./prisma.js";
+import { ProductInput, responseUtils, transactionUtils } from "./helperUtils.js";
+import { productService } from "../services/productService.js";
 import { StatusCodes } from "http-status-codes";
 import { Response } from "express";
 

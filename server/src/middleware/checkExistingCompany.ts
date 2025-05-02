@@ -1,8 +1,8 @@
 import { NextFunction, Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
-import { prisma } from "../utils/prisma";
-import { handleOtpForCompany } from "../utils/authHelpers";
-import { CustomAPIError } from "../errors";
+import { prisma } from "../utils/prisma.js";
+import { handleOtpForCompany } from "../utils/authHelpers.js";
+import { CustomAPIError } from "../errors/index.js";
 
 export const checkExistingCompany = async (
   req: Request,

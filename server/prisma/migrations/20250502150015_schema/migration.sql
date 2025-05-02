@@ -191,6 +191,8 @@ CREATE TABLE `Product` (
     `purchaseDate` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `condition` ENUM('NEW', 'USED') NOT NULL DEFAULT 'NEW',
     `quantity` INTEGER NOT NULL DEFAULT 1,
+    `minStock` INTEGER NOT NULL DEFAULT 0,
+    `maxStock` INTEGER NOT NULL DEFAULT 0,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
     `createdById` VARCHAR(191) NOT NULL,
@@ -201,6 +203,8 @@ CREATE TABLE `Product` (
     UNIQUE INDEX `Product_serialNo_key`(`serialNo`),
     INDEX `Product_productName_idx`(`productName`),
     INDEX `Product_sku_idx`(`sku`),
+    INDEX `Product_companyId_idx`(`companyId`),
+    INDEX `Product_tenantId_idx`(`tenantId`),
     UNIQUE INDEX `Product_sku_companyId_tenantId_key`(`sku`, `companyId`, `tenantId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -283,6 +287,9 @@ CREATE TABLE `Customer` (
     INDEX `Customer_name_idx`(`name`),
     INDEX `Customer_companyId_idx`(`companyId`),
     INDEX `Customer_tenantId_idx`(`tenantId`),
+    INDEX `Customer_id_idx`(`id`),
+    INDEX `Customer_phone_idx`(`phone`),
+    INDEX `Customer_email_idx`(`email`),
     UNIQUE INDEX `Customer_name_phone_key`(`name`, `phone`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -381,7 +388,7 @@ ALTER TABLE `Notification` ADD CONSTRAINT `Notification_companyId_fkey` FOREIGN 
 ALTER TABLE `User` ADD CONSTRAINT `User_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `UserBank` ADD CONSTRAINT `UserBank_companyAccountId_fkey` FOREIGN KEY (`companyAccountId`) REFERENCES `CompanyAccount`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `UserBank` ADD CONSTRAINT `UserBank_companyAccountId_fkey` FOREIGN KEY (`companyAccountId`) REFERENCES `CompanyAccount`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Product` ADD CONSTRAINT `Product_createdById_fkey` FOREIGN KEY (`createdById`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -396,7 +403,7 @@ ALTER TABLE `Product` ADD CONSTRAINT `Product_supplierId_fkey` FOREIGN KEY (`sup
 ALTER TABLE `ProductDeletionEvent` ADD CONSTRAINT `ProductDeletionEvent_productId_fkey` FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `Supplier` ADD CONSTRAINT `Supplier_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `Supplier` ADD CONSTRAINT `Supplier_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Transaction` ADD CONSTRAINT `Transaction_createdById_fkey` FOREIGN KEY (`createdById`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -420,22 +427,22 @@ ALTER TABLE `Customer` ADD CONSTRAINT `Customer_companyId_fkey` FOREIGN KEY (`co
 ALTER TABLE `PaymentPlan` ADD CONSTRAINT `PaymentPlan_customerId_fkey` FOREIGN KEY (`customerId`) REFERENCES `Customer`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `PaymentPlan` ADD CONSTRAINT `PaymentPlan_transactionId_fkey` FOREIGN KEY (`transactionId`) REFERENCES `Transaction`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `PaymentPlan` ADD CONSTRAINT `PaymentPlan_transactionId_fkey` FOREIGN KEY (`transactionId`) REFERENCES `Transaction`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `Payment` ADD CONSTRAINT `Payment_paymentPlanId_fkey` FOREIGN KEY (`paymentPlanId`) REFERENCES `PaymentPlan`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `Payment` ADD CONSTRAINT `Payment_paymentPlanId_fkey` FOREIGN KEY (`paymentPlanId`) REFERENCES `PaymentPlan`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `AccountPaidTo` ADD CONSTRAINT `AccountPaidTo_paymentId_fkey` FOREIGN KEY (`paymentId`) REFERENCES `Payment`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `AccountPaidTo` ADD CONSTRAINT `AccountPaidTo_paymentId_fkey` FOREIGN KEY (`paymentId`) REFERENCES `Payment`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `AccountPaidTo` ADD CONSTRAINT `AccountPaidTo_userBankId_fkey` FOREIGN KEY (`userBankId`) REFERENCES `UserBank`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `AccountPaidTo` ADD CONSTRAINT `AccountPaidTo_userBankId_fkey` FOREIGN KEY (`userBankId`) REFERENCES `UserBank`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `AuditLog` ADD CONSTRAINT `AuditLog_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `Invoice` ADD CONSTRAINT `Invoice_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `Invoice` ADD CONSTRAINT `Invoice_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `Invoice` ADD CONSTRAINT `Invoice_transactionId_fkey` FOREIGN KEY (`transactionId`) REFERENCES `Transaction`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `Invoice` ADD CONSTRAINT `Invoice_transactionId_fkey` FOREIGN KEY (`transactionId`) REFERENCES `Transaction`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { InventoryCtrl } from "../controllers/inventory";
-import { AuthMiddleware } from "../middleware/auth";
-import { AdminMiddleware } from "../middleware/admin";
-import { CheckActiveSubscription } from "../middleware/action";
+import { InventoryCtrl } from "../controllers/inventory.js";
+import { AuthMiddleware } from "../middleware/auth.js";
+import { AdminMiddleware } from "../middleware/admin.js";
+import { CheckActiveSubscription } from "../middleware/action.js";
 
 const router = Router();
 
@@ -14,6 +14,13 @@ router
   .post(
     [AuthMiddleware, CheckActiveSubscription],
     InventoryCtrl.createProducts
+  );
+
+router
+  .route("/manageStock")
+  .patch(
+    [AuthMiddleware, CheckActiveSubscription],
+    InventoryCtrl.manageRestockLevel
   );
 
 router.route("/banks").get(AuthMiddleware, InventoryCtrl.getAllBanks);

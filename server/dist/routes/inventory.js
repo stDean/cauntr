@@ -10,6 +10,9 @@ router
 router
     .route("/create/bulk")
     .post([AuthMiddleware, CheckActiveSubscription], InventoryCtrl.createProducts);
+router
+    .route("/manageStock")
+    .patch([AuthMiddleware, CheckActiveSubscription], InventoryCtrl.manageRestockLevel);
 router.route("/banks").get(AuthMiddleware, InventoryCtrl.getAllBanks);
 router.route("/banks").post(AuthMiddleware, InventoryCtrl.createAllBanks);
 router.route("/dashboard").get(AuthMiddleware, InventoryCtrl.dashboardSummary);

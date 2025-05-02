@@ -1,10 +1,10 @@
 import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
-import { BadRequestError, CustomAPIError, NotFoundError } from "../errors";
-import { prisma } from "../utils/prisma";
-import { SubscriptionJobs } from "../jobs/subscriptionJob";
-import { paystackService } from "../services/paystackService";
-import { my_plans } from "../utils/constants";
+import { BadRequestError, CustomAPIError, NotFoundError } from "../errors/index.js";
+import { prisma } from "../utils/prisma.js";
+import { SubscriptionJobs } from "../jobs/subscriptionJob.js";
+import { paystackService } from "../services/paystackService.js";
+import { my_plans } from "../utils/constants.js";
 import { Tier } from "@prisma/client";
 
 export const checkCompany = async ({ user }: any) => {
