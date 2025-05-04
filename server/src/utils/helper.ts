@@ -1,7 +1,11 @@
 import { Direction, Product, Supplier, TransactionType } from "@prisma/client";
 import { BadRequestError, NotFoundError } from "../errors/index.js";
 import { prisma } from "./prisma.js";
-import { ProductInput, responseUtils, transactionUtils } from "./helperUtils.js";
+import {
+  ProductInput,
+  responseUtils,
+  transactionUtils,
+} from "./helperUtils.js";
 import { productService } from "../services/productService.js";
 import { StatusCodes } from "http-status-codes";
 import { Response } from "express";
@@ -105,7 +109,14 @@ export const handleBuybackProduct = async ({
   let customer;
   if (supplier) {
     customer = await prisma.customer.upsert({
-      where: { name_phone: { name: supplier.name, phone: supplier.contact } },
+      where: {
+        name_phone_companyId_tenantId: {
+          name: supplier.name,
+          phone: supplier.contact,
+          companyId: company.id,
+          tenantId: company.tenantId,
+        },
+      },
       create: {
         name: supplier.name,
         phone: supplier.contact,

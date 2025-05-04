@@ -3,9 +3,9 @@ import { generateSKU } from "../utils/helper.js";
 import { productUtils } from "../utils/helperUtils.js";
 import { prisma } from "../utils/prisma.js";
 export const productService = {
-    findProductBySerial: async (serialNo, companyId) => {
+    findProductBySerial: async (serialNo, companyId, tenantId) => {
         return prisma.product.findUnique({
-            where: { serialNo: serialNo, companyId: companyId },
+            where: { serialNo_companyId_tenantId: { serialNo, companyId, tenantId } },
         });
     },
     updateProductQuantity: async (productId, quantityChange) => {

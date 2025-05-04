@@ -68,7 +68,8 @@ export const InventoryCtrl = {
     if (productInput.serialNo) {
       const existingProduct = await productService.findProductBySerial(
         productInput.serialNo,
-        company.id
+        company.id,
+        company.tenantId
       );
 
       if (existingProduct) {
@@ -90,7 +91,9 @@ export const InventoryCtrl = {
       company,
       supplier
     );
+
     const createdProduct = await prisma.product.create({ data: productData });
+
     responseUtils.success(res, createdProduct, StatusCodes.CREATED);
   },
 
@@ -141,8 +144,6 @@ export const InventoryCtrl = {
               s.contact === String(product["Supplier Phone Number"])
           );
 
-          // if (!supplier) throw new BadRequestError("Supplier not found");
-
           const dataInput: any = {
             tenantId: company.tenantId,
             sku: product["SKU"] || generateSKU(product["Item Type"]),
@@ -169,6 +170,7 @@ export const InventoryCtrl = {
             company,
             supplier
           );
+
           results.push(await prisma.product.create({ data: productData }));
         } catch (error: any) {
           errors.push({
@@ -1208,7 +1210,6 @@ export const InventoryCtrl = {
     const { email, companyId } = req.user;
     const { company } = await userNdCompany({ email, companyId });
     const { restock, productName } = req.body;
-    console.log({ restock, productName });
 
     if (!company) throw new BadRequestError("No company found!");
 

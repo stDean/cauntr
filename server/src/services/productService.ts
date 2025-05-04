@@ -4,9 +4,13 @@ import { ProductInput, productUtils } from "../utils/helperUtils.js";
 import { prisma } from "../utils/prisma.js";
 
 export const productService = {
-  findProductBySerial: async (serialNo: string, companyId: string) => {
+  findProductBySerial: async (
+    serialNo: string,
+    companyId: string,
+    tenantId: string
+  ) => {
     return prisma.product.findUnique({
-      where: { serialNo: serialNo, companyId: companyId },
+      where: { serialNo_companyId_tenantId: { serialNo, companyId, tenantId } },
     });
   },
 

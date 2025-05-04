@@ -107,7 +107,14 @@ export const customerUtils = {
     company: { id: string; tenantId: string }
   ) => {
     return tx.customer.upsert({
-      where: { name_phone: { name: details.name, phone: details.phone } },
+      where: {
+        name_phone_companyId_tenantId: {
+          name: details.name,
+          phone: details.phone,
+          companyId: company.id,
+          tenantId: company.tenantId,
+        },
+      },
       create: { ...details, companyId: company.id, tenantId: company.tenantId },
       update: details,
     });

@@ -13,7 +13,14 @@ export const InvoiceCtrl = {
         return prisma.$transaction(async (tx) => {
             const { customerDetails: { name, phone, email, address }, payment: { method, totalAmount, paymentDate, vat }, } = body;
             const customer = await tx.customer.upsert({
-                where: { name_phone: { name, phone } },
+                where: {
+                    name_phone_companyId_tenantId: {
+                        name,
+                        phone,
+                        tenantId: company.tenantId,
+                        companyId: company.id,
+                    },
+                },
                 create: {
                     name,
                     email,

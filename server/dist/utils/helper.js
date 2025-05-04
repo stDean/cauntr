@@ -1,7 +1,7 @@
 import { Direction, TransactionType } from "@prisma/client";
 import { BadRequestError, NotFoundError } from "../errors/index.js";
 import { prisma } from "./prisma.js";
-import { responseUtils, transactionUtils } from "./helperUtils.js";
+import { responseUtils, transactionUtils, } from "./helperUtils.js";
 import { productService } from "../services/productService.js";
 import { StatusCodes } from "http-status-codes";
 export function parseDate(dateInput) {
@@ -73,7 +73,14 @@ export const handleBuybackProduct = async ({ res, existingProduct, productInput,
     let customer;
     if (supplier) {
         customer = await prisma.customer.upsert({
-            where: { name_phone: { name: supplier.name, phone: supplier.contact } },
+            where: {
+                name_phone_companyId_tenantId: {
+                    name: supplier.name,
+                    phone: supplier.contact,
+                    companyId: company.id,
+                    tenantId: company.tenantId,
+                },
+            },
             create: {
                 name: supplier.name,
                 phone: supplier.contact,

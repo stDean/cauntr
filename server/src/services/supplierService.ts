@@ -8,7 +8,14 @@ export const supplierService = {
     tenantId: string
   ) => {
     return prisma.supplier.upsert({
-      where: { name_contact: { name, contact: phone } },
+      where: {
+        name_contact_companyId_tenantId: {
+          name,
+          contact: phone,
+          companyId,
+          tenantId,
+        },
+      },
       create: { name, contact: phone, companyId, tenantId },
       update: { name, contact: phone },
     });
@@ -28,7 +35,12 @@ export const supplierService = {
 
     const existing = await prisma.supplier.findMany({
       where: {
-        OR: uniqueSuppliers.map((s) => ({ name: s.name, contact: s.phone })),
+        OR: uniqueSuppliers.map((s) => ({
+          name: s.name,
+          contact: s.phone,
+          companyId: s.companyId,
+          tenantId: s.tenantId,
+        })),
       },
     });
 
@@ -51,7 +63,12 @@ export const supplierService = {
 
     return prisma.supplier.findMany({
       where: {
-        OR: uniqueSuppliers.map((s) => ({ name: s.name, contact: s.phone })),
+        OR: uniqueSuppliers.map((s) => ({
+          name: s.name,
+          contact: s.phone,
+          tenantId: s.tenantId,
+          companyId: s.companyId,
+        })),
       },
     });
   },

@@ -37,7 +37,7 @@ export const InventoryCtrl = {
             supplier = await supplierService.getOrCreate(productInput.supplierName, productInput.supplierPhone, company.id, company.tenantId);
         }
         if (productInput.serialNo) {
-            const existingProduct = await productService.findProductBySerial(productInput.serialNo, company.id);
+            const existingProduct = await productService.findProductBySerial(productInput.serialNo, company.id, company.tenantId);
             if (existingProduct) {
                 return handleBuybackProduct({
                     res,
@@ -86,7 +86,6 @@ export const InventoryCtrl = {
             try {
                 const supplier = suppliers.find((s) => s.name === product["Supplier Name"] &&
                     s.contact === String(product["Supplier Phone Number"]));
-                // if (!supplier) throw new BadRequestError("Supplier not found");
                 const dataInput = {
                     tenantId: company.tenantId,
                     sku: product["SKU"] || generateSKU(product["Item Type"]),
@@ -957,7 +956,6 @@ export const InventoryCtrl = {
         const { email, companyId } = req.user;
         const { company } = await userNdCompany({ email, companyId });
         const { restock, productName } = req.body;
-        console.log({ restock, productName });
         if (!company)
             throw new BadRequestError("No company found!");
         // Update the restock level for the company

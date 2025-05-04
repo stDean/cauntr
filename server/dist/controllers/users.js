@@ -279,12 +279,12 @@ export const UserCtrl = {
         const { company } = await userNdCompany(req.user);
         const existingCustomer = await prisma.customer.findUnique({
             where: {
-                name_phone: {
+                name_phone_companyId_tenantId: {
                     name: req.body.name,
                     phone: req.body.phone,
+                    companyId: company.id,
+                    tenantId: company.tenantId,
                 },
-                tenantId: company.tenantId,
-                companyId: company.id,
             },
         });
         if (existingCustomer)
@@ -321,7 +321,10 @@ export const UserCtrl = {
         });
         // Get customers from payment plans with customerType CUSTOMER
         const customerWithPaymentPlanTypeCustomer = await prisma.paymentPlan.findMany({
-            where: { customerType: CustomerType.CUSTOMER },
+            where: {
+                customerType: CustomerType.CUSTOMER,
+                Customer: { companyId: company.id, tenantId: company.tenantId },
+            },
             select: { Customer: true, payments: { where: { balanceOwed: 0 } } },
         });
         // Collect unique customers
@@ -421,12 +424,12 @@ export const UserCtrl = {
         const { company } = await userNdCompany(req.user);
         const existingCustomer = await prisma.customer.findUnique({
             where: {
-                name_phone: {
+                name_phone_companyId_tenantId: {
                     name: req.body.name,
                     phone: req.body.phone,
+                    tenantId: company.tenantId,
+                    companyId: company.id,
                 },
-                tenantId: company.tenantId,
-                companyId: company.id,
             },
         });
         if (!existingCustomer)
@@ -520,6 +523,7 @@ export const UserCtrl = {
                     },
                 },
                 transactionId: { not: null },
+                Transaction: { companyId: company.id, tenantId: company.tenantId },
             },
             select: { transactionId: true },
         });
@@ -639,12 +643,12 @@ export const UserCtrl = {
         const { company } = await userNdCompany(req.user);
         const existingSupplier = await prisma.supplier.findUnique({
             where: {
-                name_contact: {
+                name_contact_companyId_tenantId: {
                     name: req.body.name,
                     contact: req.body.contact,
+                    tenantId: company.tenantId,
+                    companyId: company.id,
                 },
-                tenantId: company.tenantId,
-                companyId: company.id,
             },
         });
         if (existingSupplier)

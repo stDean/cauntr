@@ -23,7 +23,14 @@ export const InvoiceCtrl = {
       } = body;
 
       const customer = await tx.customer.upsert({
-        where: { name_phone: { name, phone } },
+        where: {
+          name_phone_companyId_tenantId: {
+            name,
+            phone,
+            tenantId: company.tenantId,
+            companyId: company.id,
+          },
+        },
         create: {
           name,
           email,
